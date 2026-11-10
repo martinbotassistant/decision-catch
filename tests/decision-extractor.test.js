@@ -336,10 +336,16 @@ describe('Decision Extractor', () => {
       expect(shouldSkipSentence("* Another list item")).toBe(true);
     });
 
-    it('should skip task sentences with Check/Wait/Also', () => {
+    it('should skip task sentences with Check/Wait/Also without decision markers', () => {
       expect(shouldSkipSentence("Check PAY-124, we explicitly deferred this to v2")).toBe(true);
       expect(shouldSkipSentence("Wait for approval before implementing")).toBe(true);
       expect(shouldSkipSentence("Also need to verify the API")).toBe(true);
+    });
+
+    it('should NOT skip Also/Wait/Check sentences with decision markers', () => {
+      expect(shouldSkipSentence("Also decided: we'll use Redis for caching to reduce DB load")).toBe(false);
+      expect(shouldSkipSentence("Also agreed that JWT tokens expire in 24h")).toBe(false);
+      expect(shouldSkipSentence("Wait - we actually decided to use PostgreSQL")).toBe(false);
     });
 
     it('should skip descriptive task sentences', () => {

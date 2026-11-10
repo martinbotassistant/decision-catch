@@ -130,8 +130,10 @@ function shouldSkipSentence(sentence) {
     return true;
   }
 
-  // Skip task/meta sentences with 'Check', 'Wait', 'Also'
-  if (/^(Check|Wait|Also)\s/i.test(sentence)) {
+  // Skip task/meta sentences with 'Check', 'Wait', 'Also',
+  // unless they carry an explicit decision marker ("Also decided: ...")
+  const hasDecisionMarker = /\b(decided|decision|agreed|confirmed|going with)\b/i.test(sentence);
+  if (/^(Check|Wait|Also)\s/i.test(sentence) && !hasDecisionMarker) {
     return true;
   }
 

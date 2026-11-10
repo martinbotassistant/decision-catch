@@ -220,6 +220,13 @@ Post-hackathon enhancements:
 
 ## 📋 Version History
 
+### v2.9.0 (Admin Page & Extractor Fix)
+- **Admin page**: Added Jira admin settings page with danger button to reset all Decision Catch data
+- **Storage reset**: Reset counts returned (decisions, drift resolutions, dismissals)
+- **Confirmation modal**: Two-step confirmation before destructive reset action
+- **Extractor fix**: "Also decided:" sentences no longer filtered (regression from v2.8.0)
+- **Test coverage**: 80 passing tests (79 → 80), added tests for decision marker exception
+
 ### v2.8.0 (Polish Pass for Demo)
 - **Candidate lifecycle**: Candidates disappear after Approve/Dismiss (no duplicates on reload)
 - **Dismissal storage**: Dismissed candidates persisted per issue and filtered from panel

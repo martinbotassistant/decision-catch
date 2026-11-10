@@ -8,6 +8,15 @@ modules:
       title: Decision Catch
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
 
+  jira:adminPage:
+    - key: decision-catch-admin
+      resource: admin
+      render: native
+      resolver:
+        function: backend-resolver
+      title: Decision Catch Settings
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+
   function:
     - key: backend-resolver
       handler: resolvers.handler
@@ -112,3 +121,5 @@ permissions:
 resources:
   - key: main
     path: src/frontend/index.jsx
+  - key: admin
+    path: src/frontend/admin.jsx

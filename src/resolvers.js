@@ -262,5 +262,18 @@ resolver.define('getProjectDecisions', async (req) => {
   }
 });
 
+/**
+ * Reset all Decision Catch data (admin only)
+ */
+resolver.define('resetAllData', async (req) => {
+  try {
+    const counts = await clearAllStorage();
+    return { success: true, counts };
+  } catch (error) {
+    console.error('Error resetting data:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 const handler = resolver.getDefinitions();
 module.exports = { handler };

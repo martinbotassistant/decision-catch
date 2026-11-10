@@ -217,12 +217,27 @@ async function isDismissed(issueId, text) {
 
 /**
  * Clear all storage (for testing/reset)
- * @returns {Promise<void>}
+ * @returns {Promise<Object>} Counts of items removed
  */
 async function clearAllStorage() {
+  // Get counts before clearing
+  const decisions = await storage.get(DECISIONS_KEY) || [];
+  const resolutions = await storage.get(DRIFT_RESOLUTIONS_KEY) || [];
+  const dismissals = await storage.get(DISMISSALS_KEY) || [];
+  
+  const counts = {
+    decisions: decisions.length,
+    driftResolutions: resolutions.length,
+    dismissals: dismissals.length,
+    total: decisions.length + resolutions.length + dismissals.length,
+  };
+
+  // Delete all keys
   await storage.delete(DECISIONS_KEY);
   await storage.delete(DRIFT_RESOLUTIONS_KEY);
   await storage.delete(DISMISSALS_KEY);
+  
+  return counts;
 }
 
 module.exports = {
