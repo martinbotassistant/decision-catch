@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text, Strong, Em, Button, ButtonSet, Box, Stack, Inline, Heading, Badge, SectionMessage, useProductContext, invoke } from '@forge/react';
+import ForgeReconciler, { Text, Strong, Em, Button, ButtonSet, Box, Stack, Inline, Heading, Badge, SectionMessage, useProductContext } from '@forge/react';
+import { invoke } from '@forge/bridge';
 
 const App = () => {
   const context = useProductContext();
