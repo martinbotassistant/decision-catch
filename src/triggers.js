@@ -2,6 +2,7 @@
  * Forge trigger handlers for issue events
  */
 
+const { adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const { getAllDecisions } = require('./storage');
 const { fetchIssueData } = require('./jira-api');
@@ -31,7 +32,7 @@ async function onIssueCreated(event) {
     }
 
     // Check for drift
-    const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions);
 
     if (drifts.length > 0) {
@@ -81,7 +82,7 @@ async function onIssueUpdated(event) {
     }
 
     // Check for drift
-    const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions);
 
     if (drifts.length > 0) {

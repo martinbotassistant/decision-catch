@@ -45,7 +45,25 @@ const TOPIC_KEYWORDS = {
  * @param {Object} metadata - Additional context (author, timestamp, etc.)
  * @returns {Array} Array of candidate decisions
  */
+/**
+ * Convert Atlassian Document Format (ADF) to plain text.
+ * Jira REST v3 returns descriptions and comment bodies as ADF objects.
+ */
+function adfToText(node) {
+  if (node == null) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(adfToText).join('');
+  if (node.type === 'text') return node.text || '';
+  if (node.type === 'hardBreak') return '\n';
+  const inner = adfToText(node.content || []);
+  const blockTypes = ['paragraph', 'heading', 'listItem', 'blockquote', 'codeBlock', 'tableCell', 'panel'];
+  return blockTypes.includes(node.type) ? inner + '\n' : inner;
+}
+
 function extractDecisions(text, metadata = {}) {
+  if (text && typeof text === 'object') {
+    text = adfToText(text).trim();
+  }
   if (!text || typeof text !== 'string') {
     return [];
   }
@@ -189,6 +207,7 @@ function extractKeywords(text) {
 }
 
 module.exports = {
+  adfToText,
   extractDecisions,
   containsNonLatinScript,
   calculateConfidence,

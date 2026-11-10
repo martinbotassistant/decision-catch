@@ -3,7 +3,7 @@
  */
 
 const Resolver = require('@forge/resolver').default;
-const { extractDecisions } = require('./decision-extractor');
+const { extractDecisions, adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const {
   saveDecision,
@@ -71,7 +71,7 @@ resolver.define('getPanelData', async (req) => {
     const projectDecisions = await getAllDecisions(issueData.fields.project.id);
     
     // Detect drift on every panel load
-    const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions);
     
     // Filter out resolved drifts

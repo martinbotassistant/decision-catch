@@ -2,6 +2,7 @@
  * Rovo Agent Actions for Decision Catch
  */
 
+const { adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const { getAllDecisions, getDecisionsForIssue } = require('./storage');
 const { fetchIssueData } = require('./jira-api');
@@ -93,7 +94,7 @@ async function checkDrift(req) {
     }
 
     // Check for drift
-    const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions);
 
     return {
@@ -160,7 +161,7 @@ async function explainChanges(req) {
     }
 
     // Compare issue with decision
-    const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, [targetDecision]);
 
     const hasChanges = drifts.length > 0;

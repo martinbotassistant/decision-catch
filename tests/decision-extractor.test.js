@@ -3,6 +3,7 @@
  */
 
 const {
+  adfToText,
   extractDecisions,
   containsNonLatinScript,
   calculateConfidence,
@@ -69,6 +70,153 @@ describe('Decision Extractor', () => {
       const decisions = extractDecisions(text);
       
       expect(decisions.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should extract decisions from ADF objects', () => {
+      const adfObject = {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'We decided to use PostgreSQL for the database.'
+              }
+            ]
+          }
+        ]
+      };
+      
+      const decisions = extractDecisions(adfObject);
+      
+      expect(decisions.length).toBeGreaterThan(0);
+      expect(decisions[0].text).toContain('PostgreSQL');
+    });
+
+    it('should handle ADF with multiple paragraphs', () => {
+      const adfObject = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'We agreed not to implement SSO in v1.' }]
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Going with React for the frontend.' }]
+          }
+        ]
+      };
+      
+      const decisions = extractDecisions(adfObject);
+      
+      expect(decisions.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('adfToText', () => {
+    it('should convert simple ADF text node to string', () => {
+      const adf = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'Hello world' }
+            ]
+          }
+        ]
+      };
+      
+      const result = adfToText(adf);
+      expect(result).toContain('Hello world');
+    });
+
+    it('should handle multiple paragraphs', () => {
+      const adf = {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'First paragraph' }]
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Second paragraph' }]
+          }
+        ]
+      };
+      
+      const result = adfToText(adf);
+      expect(result).toContain('First paragraph');
+      expect(result).toContain('Second paragraph');
+    });
+
+    it('should handle hard breaks', () => {
+      const adf = {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Line 1' },
+          { type: 'hardBreak' },
+          { type: 'text', text: 'Line 2' }
+        ]
+      };
+      
+      const result = adfToText(adf);
+      expect(result).toContain('Line 1');
+      expect(result).toContain('Line 2');
+    });
+
+    it('should return empty string for null or undefined', () => {
+      expect(adfToText(null)).toBe('');
+      expect(adfToText(undefined)).toBe('');
+    });
+
+    it('should pass through plain strings unchanged', () => {
+      expect(adfToText('plain text')).toBe('plain text');
+    });
+
+    it('should handle arrays', () => {
+      const adf = [
+        { type: 'text', text: 'Part 1' },
+        { type: 'text', text: 'Part 2' }
+      ];
+      
+      const result = adfToText(adf);
+      expect(result).toContain('Part 1');
+      expect(result).toContain('Part 2');
+    });
+
+    it('should handle nested structures', () => {
+      const adf = {
+        type: 'doc',
+        content: [
+          {
+            type: 'blockquote',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'Quoted text' }]
+              }
+            ]
+          }
+        ]
+      };
+      
+      const result = adfToText(adf);
+      expect(result).toContain('Quoted text');
+    });
+
+    it('should handle empty content', () => {
+      const adf = {
+        type: 'paragraph',
+        content: []
+      };
+      
+      const result = adfToText(adf);
+      expect(result).toBe('\n');
     });
   });
 
