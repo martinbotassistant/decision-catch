@@ -3,6 +3,7 @@
  */
 
 const api = require('@forge/api');
+const { route } = require('@forge/api');
 
 /**
  * Fetch issue data including description and comments
@@ -10,18 +11,36 @@ const api = require('@forge/api');
  * @returns {Promise<Object>} Issue data
  */
 async function fetchIssueData(issueIdOrKey) {
-  const response = await api.asApp().requestJira(`/rest/api/3/issue/${issueIdOrKey}?expand=renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations,comment`, {
+  const fields = 'summary,description,project,comment,creator,created';
+  const response = await api.asApp().requestJira(route`/rest/api/3/issue/${issueIdOrKey}?fields=${fields}`, {
     headers: {
       'Accept': 'application/json'
     }
   });
 
+  const bodyText = await response.text();
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to fetch issue: ${error}`);
+    throw new Error(`Failed to fetch issue ${issueIdOrKey}: ${response.status} ${bodyText}`);
   }
 
-  return await response.json();
+  let data;
+  try {
+    data = JSON.parse(bodyText);
+  } catch (err) {
+    throw new Error(`Failed to parse issue ${issueIdOrKey}: ${bodyText.slice(0, 300)}`);
+  }
+
+  if (!data || !data.fields) {
+    console.error('Unexpected issue payload', {
+      issueIdOrKey,
+      status: response.status,
+      keys: data && Object.keys(data),
+      body: bodyText.slice(0, 500),
+    });
+    throw new Error(`Unexpected issue payload for ${issueIdOrKey}: missing fields`);
+  }
+
+  return data;
 }
 
 /**
@@ -30,7 +49,7 @@ async function fetchIssueData(issueIdOrKey) {
  * @returns {Promise<Object>}
  */
 async function fetchProjectData(projectIdOrKey) {
-  const response = await api.asApp().requestJira(`/rest/api/3/project/${projectIdOrKey}`, {
+  const response = await api.asApp().requestJira(route`/rest/api/3/project/${projectIdOrKey}`, {
     headers: {
       'Accept': 'application/json'
     }
@@ -54,7 +73,7 @@ async function searchIssues(projectKey, options = {}) {
   const jql = options.jql || `project = ${projectKey}`;
   const maxResults = options.maxResults || 50;
   
-  const response = await api.asApp().requestJira(`/rest/api/3/search`, {
+  const response = await api.asApp().requestJira(route`/rest/api/3/search`, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',

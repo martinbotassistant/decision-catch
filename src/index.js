@@ -27,8 +27,8 @@ resolver.define('getPanelData', async (req) => {
   const { issueId, issueKey } = req.context.extension;
   
   try {
-    // Fetch issue data from Jira
-    const issueData = await fetchIssueData(issueId);
+    // Fetch issue data from Jira (using issueKey is more reliable)
+    const issueData = await fetchIssueData(issueKey || issueId);
     
     // Extract candidate decisions from description and comments
     const candidates = [];
@@ -57,31 +57,32 @@ resolver.define('getPanelData', async (req) => {
     }
     
     // Get approved decisions for this issue
-    const issueDecisions = await getDecisionsForIssue(issueId);
+    const issueDecisions = await getDecisionsForIssue(issueData.id);
     
-    // Get all project decisions for drift detection
+    // Get all project decisions for drift detection (always check on load)
     const projectDecisions = await getAllDecisions(issueData.fields.project.id);
     
-    // Detect drift
+    // Detect drift on every panel load
     const issueText = `${issueData.fields.summary} ${issueData.fields.description || ''}`;
     const drifts = detectDrift(issueText, projectDecisions);
     
     // Filter out resolved drifts
     const unresolvedDrifts = [];
     for (const drift of drifts) {
-      const resolution = await isDriftResolved(issueId, drift.decision.id);
+      const resolution = await isDriftResolved(issueData.id, drift.decision.id);
       if (!resolution) {
         unresolvedDrifts.push(drift);
       }
     }
     
     return {
-      issueId,
-      issueKey,
+      issueId: issueData.id,
+      issueKey: issueData.key,
       candidates,
       approvedDecisions: issueDecisions,
       drifts: unresolvedDrifts,
       projectDecisionCount: projectDecisions.length,
+      projectId: issueData.fields.project.id,
     };
   } catch (error) {
     console.error('Error in getPanelData:', error);
@@ -202,7 +203,12 @@ resolver.define('getProjectDecisions', async (req) => {
   }
 });
 
+// Export resolver functions for backend calls
 module.exports = resolver.getDefinitions();
 
-// Export handler for Forge
-exports.handler = resolver.getDefinitions();
+// Export main handler that serves the UI Kit frontend
+exports.handler = async (event, context) => {
+  // For UI rendering, delegate to the frontend
+  const frontend = require('./frontend/index.jsx');
+  return frontend;
+};

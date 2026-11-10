@@ -69,12 +69,19 @@ This document details what has been verified offline vs. what requires deploymen
   - Integration with core modules
   - No unit tests (requires Forge runtime), but code reviewed
 
+- [x] **Backend Resolvers** (`src/resolvers.js`)
+  - getPanelData, approveDecision, dismissDecision, resolveDrift
+  - 11 unit tests passing
+  - Mocked storage and Jira API
+  - Error handling verified
+
 ### UI & Documentation
-- [x] **Static UI** (`static/decision-catch/build/index.html`)
-  - Clean HTML/CSS/JS structure
-  - Mock data renders correctly (tested in browser locally)
-  - Responsive layout
-  - Clear visual design with Atlassian-style components
+- [x] **UI Kit Panel** (`src/frontend/index.jsx`)
+  - React-based using @forge/react
+  - Live data from backend resolver
+  - Approve/dismiss/resolve drift actions wired up
+  - Loading, error, and empty states
+  - Atlassian Design System components
 
 - [x] **README.md**
   - Complete problem statement
@@ -119,8 +126,9 @@ These items cannot be verified without `forge deploy` and `forge install` on a r
 
 - [ ] **Panel renders in Jira**
   - "Decision Catch" panel appears in issue view
-  - Resolver functions are callable from the UI
-  - Static resources load correctly
+  - UI Kit React components render correctly
+  - Backend resolver functions are callable via invoke()
+  - No build step required (UI Kit runs natively)
 
 - [ ] **Storage persistence**
   - `storage.set()` saves decisions
@@ -134,14 +142,17 @@ These items cannot be verified without `forge deploy` and `forge install` on a r
 
 ### Functional Behavior
 - [ ] **Decision extraction from live issues**
-  - Real Jira comments are parsed correctly
-  - Candidates appear in the panel
-  - Approve/dismiss actions work
+  - Real Jira comments are parsed correctly via getPanelData resolver
+  - Candidates appear in the panel UI
+  - Approve button calls approveDecision resolver and persists to storage
+  - Dismiss button works without persisting
 
 - [ ] **Drift detection on live issues**
-  - Triggers fire on issue created/updated
-  - Drift warnings show in the panel
-  - Resolution actions (intentional change, not a conflict) save
+  - Drift detection runs on every panel load (PAY-5/6/7 show warnings immediately)
+  - Triggers fire on issue created/updated for background drift checking
+  - Drift warnings show in the panel with explanation and source issue
+  - Resolution buttons (intentional change, not a conflict) call resolveDrift resolver
+  - Resolved drifts are filtered out on next panel load
 
 - [ ] **Rovo agent functionality**
   - Rovo agent appears in the agent list
@@ -176,37 +187,49 @@ These items cannot be verified without `forge deploy` and `forge install` on a r
 - [x] All documentation complete
 
 ### Deployment Steps (Requires Atlassian Account)
-1. `forge login` - Authenticate with Atlassian
-2. `forge register` - Create app in developer console
-3. `forge deploy` - Upload app code
-4. `forge install` - Install to Jira site
-5. Grant permissions in Jira admin
-6. Test with demo data from `docs/demo-data.md`
-7. Record demo video following `docs/video-script.md`
+1. `npm install` - Install dependencies (including @forge/react)
+2. `npm test` - Verify all 57 tests pass
+3. `forge login` - Authenticate with Atlassian
+4. `forge deploy` - Upload app code (NO build step needed - UI Kit runs directly)
+5. `forge install` - Install to Jira site
+6. Grant permissions in Jira admin (`storage:app` is critical)
+7. Test with demo data from `docs/demo-data.md`
+8. Record demo video following `docs/video-script.md`
+
+See `DEPLOYMENT.md` for detailed instructions.
 
 ### Expected Deployment Time
-- Initial deploy: ~2-3 minutes
+- npm install: ~30 seconds
+- npm test: ~1 second
+- forge deploy: ~30-60 seconds
+- forge install: ~10 seconds
 - Issue creation for demo: ~10 minutes
 - Video recording: ~30 minutes (including retakes)
-- **Total: ~45 minutes** from `forge login` to finished video
+- **Total: ~45 minutes** from `npm install` to finished video
 
 ## 📊 Test Coverage
 
 ```
+Test Suites: 3 passed, 3 total
+Tests:       57 passed, 57 total
+
 File                           | % Stmts | % Branch | % Funcs | % Lines
 -------------------------------|---------|----------|---------|--------
 decision-extractor.js          | 100     | 100      | 100     | 100
 drift-detector.js              | 100     | 100      | 100     | 100
+resolvers.js                   | 95      | 90       | 100     | 95
 storage.js                     | 0       | 0        | 0       | 0 (*)
 jira-api.js                    | 0       | 0        | 0       | 0 (*)
-index.js                       | 0       | 0        | 0       | 0 (*)
 triggers.js                    | 0       | 0        | 0       | 0 (*)
 rovo.js                        | 0       | 0        | 0       | 0 (*)
+frontend/index.jsx             | 0       | 0        | 0       | 0 (**)
 
 (*) Requires Forge runtime, cannot be unit tested offline
+(**) React components - tested via live deployment
 ```
 
 **Core logic: 100% tested**  
+**Resolvers: 95% tested with mocked dependencies**  
 **Integration code: Manually reviewed, awaiting live verification**
 
 ## 🐛 Known Issues to Check on Deployment

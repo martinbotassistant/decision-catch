@@ -1,83 +1,112 @@
 modules:
   jira:issuePanel:
     - key: decision-catch-panel
-      resource: main
+      render: native
+      function: resolver
       resolver:
-        function: resolver
+        function: backend-resolver
       title: Decision Catch
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
-      description: Track and validate decisions made in Jira comments
-  
+
   function:
     - key: resolver
-      handler: index.handler
-    
+      handler: frontend/index.run
+    - key: backend-resolver
+      handler: resolvers.handler
     - key: issue-created-trigger
       handler: triggers.onIssueCreated
-    
     - key: issue-updated-trigger
       handler: triggers.onIssueUpdated
-  
+    - key: rovo-list-decisions
+      handler: rovo.listDecisions
+    - key: rovo-check-drift
+      handler: rovo.checkDrift
+    - key: rovo-explain-changes
+      handler: rovo.explainChanges
+
   trigger:
     - key: issue-created
       function: issue-created-trigger
       events:
         - avi:jira:created:issue
-    
     - key: issue-updated
       function: issue-updated-trigger
       events:
         - avi:jira:updated:issue
-  
+
   rovo:agent:
     - key: decision-catch-agent
       name: Decision Catch
       description: AI agent to track decisions and detect drift in Jira projects
-      avatar: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      prompt: |
+        You are Decision Catch, an assistant that helps teams track decisions made in Jira
+        and detect when new work drifts from those decisions.
+        You can list approved decisions for an issue or project, check an issue for drift,
+        and explain what has changed since a decision was made.
+        Use the available actions to fetch live data. Do not invent decisions or drift.
+        If no decisions exist yet, say so clearly.
+      conversationStarters:
+        - List all decisions for this project
+        - Check this issue for drift
+        - Explain what changed since a decision was made
       actions:
-        - key: list-decisions
-          name: List decisions for issue or project
-          description: List all approved decisions for a specific issue or project
-          function: rovo-list-decisions
-        
-        - key: check-drift
-          name: Check issue for drift
-          description: Check if an issue contradicts any approved decisions
-          function: rovo-check-drift
-        
-        - key: explain-changes
-          name: Explain decision changes
-          description: Explain what has changed since a decision was made
-          function: rovo-explain-changes
-  
-  function:
-    - key: rovo-list-decisions
-      handler: rovo.listDecisions
-    
-    - key: rovo-check-drift
-      handler: rovo.checkDrift
-    
-    - key: rovo-explain-changes
-      handler: rovo.explainChanges
+        - list-decisions
+        - check-drift
+        - explain-changes
+
+  action:
+    - key: list-decisions
+      name: List decisions for issue or project
+      description: List all approved decisions for a specific issue or project
+      function: rovo-list-decisions
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: Jira issue key to list decisions for, for example PAY-123
+          type: string
+        projectId:
+          title: Project ID
+          description: Jira project ID to list all approved decisions for
+          type: string
+    - key: check-drift
+      name: Check issue for drift
+      description: Check if an issue contradicts any approved decisions
+      function: rovo-check-drift
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: Jira issue key to check for drift against approved decisions
+          type: string
+    - key: explain-changes
+      name: Explain decision changes
+      description: Explain what has changed since a decision was made
+      function: rovo-explain-changes
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: Jira issue key to compare against a recorded decision
+          type: string
+        decisionText:
+          title: Decision text
+          description: Optional fragment of the decision text to explain changes for
+          type: string
 
 app:
-  id: ari:cloud:ecosystem::app/PLACEHOLDER
-  name: Decision Catch
-  description: Automatically detect decisions in Jira comments and warn when they drift
+  id: ari:cloud:ecosystem::app/b50edd6d-fe86-48bf-aa19-8e5d9c29168c
+  runtime:
+    name: nodejs24.x
 
 permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-  
+    - storage:app
+
   external:
     fetch:
       backend:
         - '*.atlassian.net'
-
-resources:
-  - key: main
-    path: static/decision-catch/build
-
-environment:
-  runtime: nodejs20.x
