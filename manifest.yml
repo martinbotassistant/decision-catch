@@ -1,0 +1,83 @@
+modules:
+  jira:issuePanel:
+    - key: decision-catch-panel
+      resource: main
+      resolver:
+        function: resolver
+      title: Decision Catch
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      description: Track and validate decisions made in Jira comments
+  
+  function:
+    - key: resolver
+      handler: index.handler
+    
+    - key: issue-created-trigger
+      handler: triggers.onIssueCreated
+    
+    - key: issue-updated-trigger
+      handler: triggers.onIssueUpdated
+  
+  trigger:
+    - key: issue-created
+      function: issue-created-trigger
+      events:
+        - avi:jira:created:issue
+    
+    - key: issue-updated
+      function: issue-updated-trigger
+      events:
+        - avi:jira:updated:issue
+  
+  rovo:agent:
+    - key: decision-catch-agent
+      name: Decision Catch
+      description: AI agent to track decisions and detect drift in Jira projects
+      avatar: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      actions:
+        - key: list-decisions
+          name: List decisions for issue or project
+          description: List all approved decisions for a specific issue or project
+          function: rovo-list-decisions
+        
+        - key: check-drift
+          name: Check issue for drift
+          description: Check if an issue contradicts any approved decisions
+          function: rovo-check-drift
+        
+        - key: explain-changes
+          name: Explain decision changes
+          description: Explain what has changed since a decision was made
+          function: rovo-explain-changes
+  
+  function:
+    - key: rovo-list-decisions
+      handler: rovo.listDecisions
+    
+    - key: rovo-check-drift
+      handler: rovo.checkDrift
+    
+    - key: rovo-explain-changes
+      handler: rovo.explainChanges
+
+app:
+  id: ari:cloud:ecosystem::app/PLACEHOLDER
+  name: Decision Catch
+  description: Automatically detect decisions in Jira comments and warn when they drift
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+  
+  external:
+    fetch:
+      backend:
+        - '*.atlassian.net'
+
+resources:
+  - key: main
+    path: static/decision-catch/build
+
+environment:
+  runtime: nodejs20.x

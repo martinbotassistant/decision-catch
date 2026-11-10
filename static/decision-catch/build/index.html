@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decision Catch Panel</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            padding: 16px;
+            margin: 0;
+            background: #f4f5f7;
+        }
+        
+        .container {
+            max-width: 100%;
+        }
+        
+        .header {
+            margin-bottom: 24px;
+        }
+        
+        .header h2 {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            color: #172b4d;
+        }
+        
+        .header p {
+            margin: 0;
+            color: #5e6c84;
+            font-size: 14px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 3px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 1px rgba(9, 30, 66, 0.25);
+        }
+        
+        .section h3 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #172b4d;
+        }
+        
+        .alert {
+            padding: 12px;
+            border-radius: 3px;
+            margin-bottom: 12px;
+        }
+        
+        .alert-warning {
+            background: #fffae6;
+            border-left: 4px solid #ffc400;
+        }
+        
+        .alert-info {
+            background: #deebff;
+            border-left: 4px solid #0052cc;
+        }
+        
+        .decision-card {
+            border: 1px solid #dfe1e6;
+            border-radius: 3px;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+        }
+        
+        .decision-text {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #172b4d;
+        }
+        
+        .decision-meta {
+            font-size: 12px;
+            color: #5e6c84;
+            margin-bottom: 8px;
+        }
+        
+        .topics {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        
+        .topic-badge {
+            background: #deebff;
+            color: #0052cc;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        
+        .button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 3px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        
+        .button-primary {
+            background: #0052cc;
+            color: white;
+        }
+        
+        .button-primary:hover {
+            background: #0065ff;
+        }
+        
+        .button-secondary {
+            background: #f4f5f7;
+            color: #172b4d;
+        }
+        
+        .button-secondary:hover {
+            background: #ebecf0;
+        }
+        
+        .button-danger {
+            background: #de350b;
+            color: white;
+        }
+        
+        .button-danger:hover {
+            background: #ff5630;
+        }
+        
+        .confidence-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .confidence-high {
+            background: #e3fcef;
+            color: #006644;
+        }
+        
+        .confidence-medium {
+            background: #fffae6;
+            color: #974f0c;
+        }
+        
+        .confidence-low {
+            background: #ffebe6;
+            color: #bf2600;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: #5e6c84;
+        }
+        
+        .drift-explanation {
+            font-style: italic;
+            color: #5e6c84;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 32px;
+            color: #5e6c84;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <div class="loading">Loading Decision Catch...</div>
+    </div>
+
+    <script>
+        // Simulated data for demo purposes
+        // In production, this would call the Forge resolver API
+        
+        const mockData = {
+            candidates: [
+                {
+                    text: "We decided to use PostgreSQL for the main database because of better JSON support",
+                    confidence: 0.8,
+                    topics: ["database"],
+                    keywords: ["postgres", "postgresql", "json"],
+                    metadata: {
+                        source: "comment",
+                        author: "John Developer",
+                    }
+                }
+            ],
+            approvedDecisions: [
+                {
+                    id: "1",
+                    text: "Agreed: no SSO implementation in v1, deferred to v2",
+                    topics: ["security", "scope"],
+                    keywords: ["sso", "v1", "v2"],
+                    sourceIssueKey: "PAY-123",
+                    approvedAt: Date.now() - 86400000,
+                }
+            ],
+            drifts: [
+                {
+                    decision: {
+                        text: "Agreed: no SSO implementation in v1, deferred to v2",
+                        sourceIssueKey: "PAY-123",
+                    },
+                    type: "scope_violation",
+                    explanation: "Issue includes SSO, but it was decided as out of scope",
+                    confidence: 0.8,
+                }
+            ],
+        };
+
+        function renderApp(data) {
+            const app = document.getElementById('app');
+            
+            let html = `
+                <div class="header">
+                    <h2>🎯 Decision Catch</h2>
+                    <p>Track decisions and detect drift</p>
+                </div>
+            `;
+
+            // Drift warnings
+            if (data.drifts && data.drifts.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>⚠️ Drift Detected</h3>
+                        ${data.drifts.map(drift => `
+                            <div class="alert alert-warning">
+                                <strong>${drift.type.replace(/_/g, ' ')}</strong>
+                                <div class="drift-explanation">${drift.explanation}</div>
+                                <div class="decision-meta" style="margin-top: 8px;">
+                                    Original decision in ${drift.decision.sourceIssueKey}: "${drift.decision.text}"
+                                </div>
+                                <div style="margin-top: 12px;">
+                                    <button class="button button-secondary">Mark as intentional change</button>
+                                    <button class="button button-secondary">Not a conflict</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Candidate decisions
+            if (data.candidates && data.candidates.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>📝 Candidate Decisions (${data.candidates.length})</h3>
+                        <p style="color: #5e6c84; font-size: 13px; margin-bottom: 12px;">
+                            Found in comments and description. Approve to track them.
+                        </p>
+                        ${data.candidates.map((candidate, index) => `
+                            <div class="decision-card">
+                                <p class="decision-text">"${candidate.text}"</p>
+                                <div class="decision-meta">
+                                    ${candidate.metadata.source} by ${candidate.metadata.author}
+                                    ${candidate.confidence > 0.7 ? '<span class="confidence-badge confidence-high">High confidence</span>' :
+                                      candidate.confidence > 0.4 ? '<span class="confidence-badge confidence-medium">Medium</span>' :
+                                      '<span class="confidence-badge confidence-low">Low</span>'}
+                                </div>
+                                ${candidate.topics && candidate.topics.length > 0 ? `
+                                    <div class="topics">
+                                        ${candidate.topics.map(topic => `
+                                            <span class="topic-badge">${topic}</span>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                <button class="button button-primary">✓ Approve</button>
+                                <button class="button button-secondary">Dismiss</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="section">
+                        <h3>📝 Candidate Decisions</h3>
+                        <div class="empty-state">
+                            No candidate decisions found in this issue.
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Approved decisions
+            if (data.approvedDecisions && data.approvedDecisions.length > 0) {
+                html += `
+                    <div class="section">
+                        <h3>✅ Approved Decisions (${data.approvedDecisions.length})</h3>
+                        ${data.approvedDecisions.map(decision => `
+                            <div class="decision-card">
+                                <p class="decision-text">"${decision.text}"</p>
+                                <div class="decision-meta">
+                                    From ${decision.sourceIssueKey} • ${new Date(decision.approvedAt).toLocaleDateString()}
+                                </div>
+                                ${decision.topics && decision.topics.length > 0 ? `
+                                    <div class="topics">
+                                        ${decision.topics.map(topic => `
+                                            <span class="topic-badge">${topic}</span>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            app.innerHTML = html;
+        }
+
+        // Initialize
+        renderApp(mockData);
+    </script>
+</body>
+</html>
