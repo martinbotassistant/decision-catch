@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text, Strong, Em, Button, ButtonSet, Box, Stack, Inline, Heading, Badge, SectionMessage, useProductContext } from '@forge/react';
+import ForgeReconciler, { Text, Strong, Em, Button, ButtonGroup, Box, Stack, Inline, Heading, Lozenge, SectionMessage, useProductContext } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
 const App = () => {
@@ -126,24 +126,18 @@ const App = () => {
                 <SectionMessage key={index} appearance="warning">
                   <Stack space="space.100">
                     <Text>
-                      <Strong>{drift.type.replace(/_/g, ' ')}</Strong>
+                      <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
                     </Text>
                     <Text>
                       <Em>{drift.explanation}</Em>
                     </Text>
                     <Text>
-                      Original decision in {drift.decision.sourceIssueKey}: "{drift.decision.text}"
+                      Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
                     </Text>
-                    <ButtonSet>
-                      <Button
-                        text="Mark as intentional change"
-                        onClick={() => handleResolveDrift(drift, 'intentional_change')}
-                      />
-                      <Button
-                        text="Not a conflict"
-                        onClick={() => handleResolveDrift(drift, 'not_a_conflict')}
-                      />
-                    </ButtonSet>
+                    <ButtonGroup>
+                      <Button onClick={() => handleResolveDrift(drift, 'intentional_change')}>Mark as intentional change</Button>
+                      <Button onClick={() => handleResolveDrift(drift, 'not_a_conflict')}>Not a conflict</Button>
+                    </ButtonGroup>
                   </Stack>
                 </SectionMessage>
               ))}
@@ -161,33 +155,23 @@ const App = () => {
                   <Stack space="space.100">
                     <Text>"{candidate.text}"</Text>
                     <Inline space="space.100">
-                      <Badge 
-                        text={`${candidate.metadata.source} by ${candidate.metadata.author}`}
-                        appearance="default"
-                      />
-                      <Badge
-                        text={candidate.confidence > 0.7 ? 'High confidence' : candidate.confidence > 0.4 ? 'Medium' : 'Low'}
-                        appearance={candidate.confidence > 0.7 ? 'added' : candidate.confidence > 0.4 ? 'default' : 'removed'}
-                      />
+                      <Lozenge appearance="default">{`${candidate.metadata?.source} by ${candidate.metadata?.author || "unknown"}`}</Lozenge>
+                      <Lozenge appearance={candidate.confidence > 0.7 ? 'success' : candidate.confidence > 0.4 ? 'default' : 'removed'}>
+                        {candidate.confidence > 0.7 ? 'High confidence' : candidate.confidence > 0.4 ? 'Medium' : 'Low'}
+                      </Lozenge>
                     </Inline>
                     {candidate.topics && candidate.topics.length > 0 && (
                       <Inline space="space.050">
                         {candidate.topics.map((topic, i) => (
-                          <Badge key={i} text={topic} appearance="primary" />
+                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
                         ))}
                       </Inline>
                     )}
-                    <ButtonSet>
-                      <Button
-                        text="✓ Approve"
-                        appearance="primary"
-                        onClick={() => handleApprove(candidate)}
-                      />
-                      <Button
-                        text="Dismiss"
-                        onClick={() => handleDismiss(candidate)}
-                      />
-                    </ButtonSet>
+                    <ButtonGroup>
+                      <Button appearance="primary"
+                        onClick={() => handleApprove(candidate)}>✓ Approve</Button>
+                      <Button onClick={() => handleDismiss(candidate)}>Dismiss</Button>
+                    </ButtonGroup>
                   </Stack>
                 </Box>
               ))}
@@ -212,7 +196,7 @@ const App = () => {
                     {decision.topics && decision.topics.length > 0 && (
                       <Inline space="space.050">
                         {decision.topics.map((topic, i) => (
-                          <Badge key={i} text={topic} appearance="primary" />
+                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
                         ))}
                       </Inline>
                     )}
@@ -234,7 +218,7 @@ const App = () => {
   );
 };
 
-export const run = ForgeReconciler.render(
+ForgeReconciler.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>

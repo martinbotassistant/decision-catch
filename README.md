@@ -82,9 +82,12 @@ manifest.yml                # Forge app manifest
 ```
 
 ### Technology Stack
-- **Runtime**: Node.js 20.x (Forge standard)
+- **Runtime**: Node.js 24.x (Forge standard)
 - **Storage**: Forge Storage API (no external database)
-- **UI**: Custom HTML/CSS/JS (loaded via Forge custom UI)
+- **UI**: Forge UI Kit (@forge/react v10) with React components
+  - Uses `ButtonGroup` (not ButtonSet), `Lozenge` (not Badge for text labels)
+  - Button labels as children, not `text` prop
+  - Proper UI Kit patterns for Jira panel rendering
 - **Testing**: Jest
 - **No external dependencies** for core logic (decision extraction and drift detection)
 
