@@ -19,8 +19,9 @@ jest.mock('@forge/api', () => ({
   },
 }));
 
-jest.mock('@forge/resolver', () => {
-  return class MockResolver {
+jest.mock('@forge/resolver', () => ({
+  __esModule: true,
+  default: class MockResolver {
     constructor() {
       this.definitions = {};
     }
@@ -32,8 +33,8 @@ jest.mock('@forge/resolver', () => {
     getDefinitions() {
       return this.definitions;
     }
-  };
-});
+  }
+}));
 
 // Mock storage module
 const mockStorage = {
@@ -53,7 +54,7 @@ const mockJiraApi = {
 
 jest.mock('../src/jira-api', () => mockJiraApi);
 
-const resolvers = require('../src/resolvers');
+const resolvers = require('../src/resolvers').handler;
 
 describe('Resolver Functions', () => {
   beforeEach(() => {

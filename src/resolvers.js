@@ -2,7 +2,7 @@
  * Backend resolver functions for Decision Catch panel
  */
 
-const Resolver = require('@forge/resolver');
+const Resolver = require('@forge/resolver').default;
 const { extractDecisions } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const {
@@ -215,7 +215,5 @@ resolver.define('getProjectDecisions', async (req) => {
   }
 });
 
-module.exports = resolver.getDefinitions();
-
-// Export handler for manifest
-exports.handler = resolver.getDefinitions();
+const handler = resolver.getDefinitions();
+module.exports = { handler };

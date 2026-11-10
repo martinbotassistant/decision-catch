@@ -2,7 +2,7 @@
  * Main Forge resolver for Decision Catch UI panel
  */
 
-const Resolver = require('@forge/resolver');
+const Resolver = require('@forge/resolver').default;
 const { extractDecisions } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const {

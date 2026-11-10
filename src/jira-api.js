@@ -72,8 +72,9 @@ async function fetchProjectData(projectIdOrKey) {
 async function searchIssues(projectKey, options = {}) {
   const jql = options.jql || `project = ${projectKey}`;
   const maxResults = options.maxResults || 50;
+  const fields = options.fields || ['summary', 'description', 'created', 'updated'];
   
-  const response = await api.asApp().requestJira(route`/rest/api/3/search`, {
+  const response = await api.asApp().requestJira(route`/rest/api/3/search/jql`, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
@@ -82,7 +83,7 @@ async function searchIssues(projectKey, options = {}) {
     body: JSON.stringify({
       jql,
       maxResults,
-      fields: options.fields || ['summary', 'description', 'created', 'updated']
+      fields
     })
   });
 
