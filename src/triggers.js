@@ -33,7 +33,7 @@ async function onIssueCreated(event) {
 
     // Check for drift
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, projectDecisions);
+    const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
 
     if (drifts.length > 0) {
       console.log(`Detected ${drifts.length} potential drift(s) in new issue ${issue.key}`);
@@ -83,7 +83,7 @@ async function onIssueUpdated(event) {
 
     // Check for drift
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, projectDecisions);
+    const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
 
     if (drifts.length > 0) {
       console.log(`Detected ${drifts.length} potential drift(s) in updated issue ${issue.key}`);

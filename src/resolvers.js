@@ -18,6 +18,7 @@ const {
   getDismissals,
   isDismissed,
   hashText,
+  clearAllStorage,
 } = require('./storage');
 const { fetchIssueData } = require('./jira-api');
 
@@ -95,7 +96,7 @@ resolver.define('getPanelData', async (req) => {
     
     // Detect drift on every panel load
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, projectDecisions);
+    const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
     
     // Filter out resolved drifts
     const unresolvedDrifts = [];

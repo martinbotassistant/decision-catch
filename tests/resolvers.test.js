@@ -47,6 +47,7 @@ const mockStorage = {
   getDismissals: jest.fn(),
   isDismissed: jest.fn(),
   hashText: jest.fn((text) => text.toLowerCase().trim().replace(/\s+/g, ' ')),
+  clearAllStorage: jest.fn(),
 };
 
 jest.mock('../src/storage', () => mockStorage);
@@ -461,6 +462,38 @@ describe('Resolver Functions', () => {
       });
 
       expect(result.drifts.length).toBe(0); // Drift was filtered out
+    });
+  });
+
+  describe('resetAllData', () => {
+    it('should call clearAllStorage and return counts', async () => {
+      const mockCounts = {
+        decisions: 5,
+        driftResolutions: 2,
+        dismissals: 3,
+        total: 10,
+      };
+
+      mockStorage.clearAllStorage.mockResolvedValue(mockCounts);
+
+      const result = await resolvers.resetAllData({
+        context: {},
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.counts).toEqual(mockCounts);
+      expect(mockStorage.clearAllStorage).toHaveBeenCalled();
+    });
+
+    it('should handle errors gracefully', async () => {
+      mockStorage.clearAllStorage.mockRejectedValue(new Error('Storage error'));
+
+      const result = await resolvers.resetAllData({
+        context: {},
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Storage error');
     });
   });
 });

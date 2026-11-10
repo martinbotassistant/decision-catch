@@ -297,4 +297,165 @@ describe('Drift Detector', () => {
       expect(alternativeDrift.explanation).toContain('postgresql');
     });
   });
+
+  describe('live demo scenarios', () => {
+    it('PAY-5: should detect scope violation for SSO and not confuse with OAuth vs JWT', () => {
+      const issueText = 'Add SSO login for enterprise customers using OAuth2';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-2',
+          text: 'Decision: no SSO implementation in v1, deferred to v2',
+          keywords: ['sso'],
+          topics: ['security'],
+        },
+        {
+          id: 'decision-2',
+          sourceIssueKey: 'PAY-4',
+          text: "We'll use JWT tokens for API authentication",
+          keywords: ['jwt'],
+          topics: ['security'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-5' });
+      
+      // Should only flag SSO scope violation, not OAuth vs JWT
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].type).toBe('scope_violation');
+      expect(drifts[0].explanation).toContain('sso');
+      expect(drifts[0].decision.id).toBe('decision-1');
+    });
+
+    it('PAY-6: should detect MongoDB vs PostgreSQL (alternative database)', () => {
+      const issueText = 'Implementing user storage with MongoDB database';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-3',
+          text: 'We decided to use PostgreSQL for the database',
+          keywords: ['postgresql', 'database'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-6' });
+      
+      // Should flag MongoDB as alternative database
+      expect(drifts.length).toBeGreaterThan(0);
+      const dbDrift = drifts.find(d => d.explanation.includes('mongodb'));
+      expect(dbDrift).toBeDefined();
+      expect(dbDrift.type).toBe('alternative');
+      expect(dbDrift.explanation).toMatch(/mongodb.*instead of.*postgresql/i);
+    });
+
+    it('PAY-7: should show single warning for Angular vs React (no duplicates)', () => {
+      const issueText = 'Build user dashboard with Angular components';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-1',
+          text: 'Going with React for the frontend',
+          keywords: ['react'],
+          topics: ['framework'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-7' });
+      
+      // Should show exactly one drift (no duplicates)
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].type).toBe('alternative');
+      expect(drifts[0].explanation).toMatch(/angular.*instead of.*react/i);
+    });
+
+    it('should skip decisions from the same issue (no self-drift)', () => {
+      const issueText = 'Implementing SSO with OAuth2';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-5',
+          text: 'Decision: we will implement SSO in this issue',
+          keywords: ['sso', 'oauth'],
+          topics: ['security'],
+        },
+        {
+          id: 'decision-2',
+          sourceIssueKey: 'PAY-2',
+          text: 'Decision: no SSO implementation in v1',
+          keywords: ['sso'],
+          topics: ['security'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-5' });
+      
+      // Should only flag decision-2, not decision-1 (same issue)
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].decision.id).toBe('decision-2');
+      expect(drifts[0].decision.sourceIssueKey).toBe('PAY-2');
+    });
+
+    it('should NOT flag "decision" or "define" as scope violations (stopwords)', () => {
+      const issueText = 'This issue will define the API contract and implement the decision endpoint';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-1',
+          text: 'Decision: defer the decision service to v2',
+          keywords: ['decision', 'define'],
+          topics: ['scope'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-8' });
+      
+      // Should not flag 'decision' or 'define' (stopwords)
+      expect(drifts.length).toBe(0);
+    });
+
+    it('should deduplicate drifts with identical explanations', () => {
+      const issueText = 'Using Angular and Vue components';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-1',
+          text: 'Going with React for all components',
+          keywords: ['react'],
+          topics: ['framework'],
+        },
+        {
+          id: 'decision-2',
+          sourceIssueKey: 'PAY-2',
+          text: 'Decided to use React',
+          keywords: ['react'],
+          topics: ['framework'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-9' });
+      
+      // Should only show one drift even though multiple decisions exist
+      expect(drifts.length).toBe(1);
+    });
+
+    it('switching from X to Y: should detect alternative when issue names decided tech', () => {
+      const issueText = 'Switching from PostgreSQL to MongoDB for better flexibility';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-3',
+          text: 'We decided to use PostgreSQL',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-10' });
+      
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].type).toBe('alternative');
+      expect(drifts[0].explanation).toMatch(/mongodb.*instead of.*postgresql/i);
+    });
+  });
 });

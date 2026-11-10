@@ -95,7 +95,7 @@ async function checkDrift(req) {
 
     // Check for drift
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, projectDecisions);
+    const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
 
     return {
       success: true,

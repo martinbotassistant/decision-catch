@@ -220,6 +220,14 @@ Post-hackathon enhancements:
 
 ## 📋 Version History
 
+### v2.10.0 (Live Bug Fixes from Demo)
+- **Fix #1**: Import clearAllStorage in resolvers.js (resetAllData was failing)
+- **Fix #2**: Scope drift precision - keyword must be object of negation within ~20 chars OR in exclusion phrase within ~25 chars, uses whole-word matching, skips SCOPE_STOPWORDS (decision, define, scope, v1, v2, etc.)
+- **Fix #3**: Same-issue skip - decisions never drift from the issue they were made in (detectDrift accepts currentIssueKey option, all callers pass it)
+- **Fix #4**: Drift deduplication - drifts with identical explanations are filtered out
+- **Fix #5**: Alternative detection improved - "switching from PostgreSQL to MongoDB" now correctly yields "uses mongodb instead of postgresql" (when issue names decided tech, other same-category techs count; substring pairs like postgres/postgresql ignored)
+- **Test coverage**: 89 passing tests (80 → 89), added comprehensive live demo scenarios (PAY-5, PAY-6, PAY-7), same-issue skip, stopwords, deduplication, and switching patterns
+
 ### v2.9.0 (Admin Page & Extractor Fix)
 - **Admin page**: Added Jira admin settings page with danger button to reset all Decision Catch data
 - **Storage reset**: Reset counts returned (decisions, drift resolutions, dismissals)

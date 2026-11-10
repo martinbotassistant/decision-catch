@@ -32,7 +32,7 @@ const USAGE_PATTERNS = [
  * @param {Array} approvedDecisions - Array of approved decision objects
  * @returns {Array} Array of drift warnings
  */
-function detectDrift(issueText, approvedDecisions) {
+function detectDrift(issueText, approvedDecisions, options = {}) {
   if (!issueText || !Array.isArray(approvedDecisions)) {
     return [];
   }
@@ -45,6 +45,10 @@ function detectDrift(issueText, approvedDecisions) {
   const decisionDrifts = new Map();
 
   for (const decision of approvedDecisions) {
+    // A decision never drifts from the issue it was made in
+    if (options.currentIssueKey && decision.sourceIssueKey === options.currentIssueKey) {
+      continue;
+    }
     const decisionKeywords = decision.keywords || [];
     const decisionTopics = decision.topics || [];
     
@@ -81,7 +85,13 @@ function detectDrift(issueText, approvedDecisions) {
   }
 
   // Convert map to array and sort by severity (confidence)
+  const seenExplanations = new Set();
   const sortedDrifts = Array.from(decisionDrifts.values())
+    .filter((d) => {
+      if (seenExplanations.has(d.explanation)) return false;
+      seenExplanations.add(d.explanation);
+      return true;
+    })
     .sort((a, b) => {
       // Scope violations first (highest confidence)
       if (a.type === 'scope_violation' && b.type !== 'scope_violation') return -1;
@@ -100,20 +110,25 @@ function detectDrift(issueText, approvedDecisions) {
  * @param {Array} decisionKeywords - Keywords from the decision
  * @returns {Object|null} Contradiction details or null
  */
+const SCOPE_STOPWORDS = new Set(['decision', 'decided', 'define', 'scope', 'v1', 'v2', 'implementation', 'implement', 'use', 'using', 'deferred', 'later']);
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function detectContradiction(issueText, decisionText, decisionKeywords) {
   // Type 1: Check for scope violations first (highest priority)
   for (const keyword of decisionKeywords) {
-    const decisionIsNegative = 
-      decisionText.includes(`no ${keyword}`) ||
-      decisionText.includes(`not ${keyword}`) ||
-      decisionText.includes(`won't ${keyword}`) ||
-      (decisionText.includes('excluded') && decisionText.includes(keyword)) ||
-      (decisionText.includes('out of scope') && decisionText.includes(keyword)) ||
-      (decisionText.includes('deferred') && decisionText.includes(keyword));
+    if (SCOPE_STOPWORDS.has(keyword)) continue;
+    const kw = escapeRegExp(keyword);
+    // The keyword must be the object of a negation/exclusion ("no SSO", "SSO is out of scope", "SSO deferred")
+    const decisionIsNegative =
+      new RegExp(`\\b(no|not|without|won't|exclude|excluding|skip|drop)\\b[^.;]{0,20}\\b${kw}\\b`).test(decisionText) ||
+      new RegExp(`\\b${kw}\\b[^.;]{0,25}\\b(out of scope|excluded|deferred)\\b`).test(decisionText);
 
     if (decisionIsNegative) {
-      // Check if issue mentions this keyword in affirmative context
-      if (issueText.includes(keyword)) {
+      // Check if issue mentions this keyword as a whole word
+      if (new RegExp(`\\b${kw}\\b`).test(issueText)) {
         return {
           type: 'scope_violation',
           explanation: `Issue implements "${keyword}", but decision was to exclude it from scope`,
@@ -137,10 +152,18 @@ function detectContradiction(issueText, decisionText, decisionKeywords) {
     if (decisionIsAffirmative) {
       // Check for use of a different technology in the same category
       const issueUsage = extractUsedTechnologies(issueText);
+      // Switch pattern: the issue names the decided tech AND another tech of the same
+      // category (e.g. "switching from PostgreSQL to MongoDB")
+      if (new RegExp(`\\b${escapeRegExp(keyword)}\\b`).test(issueText)) {
+        for (const tech of extractKeywordsFromText(issueText)) {
+          if (tech.includes(keyword) || keyword.includes(tech)) continue;
+          if (!issueUsage.includes(tech)) issueUsage.push(tech);
+        }
+      }
       
       if (issueUsage.length > 0) {
         for (const usedTech of issueUsage) {
-          if (usedTech !== keyword) {
+          if (usedTech !== keyword && !usedTech.includes(keyword) && !keyword.includes(usedTech)) {
             const sameCategory = hasSameCategory(keyword, usedTech);
             if (sameCategory) {
               return {
