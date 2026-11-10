@@ -1,16 +1,14 @@
 modules:
   jira:issuePanel:
     - key: decision-catch-panel
+      resource: main
       render: native
-      function: resolver
       resolver:
         function: backend-resolver
       title: Decision Catch
       icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
 
   function:
-    - key: resolver
-      handler: frontend/index.run
     - key: backend-resolver
       handler: resolvers.handler
     - key: issue-created-trigger
@@ -110,3 +108,7 @@ permissions:
     fetch:
       backend:
         - '*.atlassian.net'
+
+resources:
+  - key: main
+    path: src/frontend/index.jsx

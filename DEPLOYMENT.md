@@ -103,20 +103,25 @@ Unlike custom UI apps that need Webpack/Vite, UI Kit apps:
 - Are deployed as-is with `forge deploy`
 - No `npm run build` needed
 
-The manifest points `function: resolver` to `frontend/index.run`, which exports the React app directly.
+The manifest uses the official UI Kit pattern:
+- Panel has `resource: main` pointing to the React source file
+- `resources: [{ key: main, path: src/frontend/index.jsx }]`
+- Backend resolver handles API calls separately
 
 ## Deployment Architecture
 
 ```
 manifest.yml
 ├── jira:issuePanel (Decision Catch panel)
-│   ├── function: resolver → frontend/index.jsx (React UI)
+│   ├── resource: main → src/frontend/index.jsx (React UI)
 │   └── resolver: backend-resolver → resolvers.js (API calls)
+├── function: backend-resolver → resolvers.js
 ├── function: issue-created-trigger → triggers.js
 ├── function: issue-updated-trigger → triggers.js
 ├── rovo:agent (Decision Catch Rovo agent)
 │   └── actions → rovo.js
-└── action: list-decisions, check-drift, explain-changes
+├── action: list-decisions, check-drift, explain-changes
+└── resources: main → src/frontend/index.jsx
 ```
 
 ### Data Flow
