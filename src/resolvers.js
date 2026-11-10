@@ -14,6 +14,10 @@ const {
   saveDriftResolution,
   getDriftResolutions,
   isDriftResolved,
+  saveDismissal,
+  getDismissals,
+  isDismissed,
+  hashText,
 } = require('./storage');
 const { fetchIssueData } = require('./jira-api');
 
@@ -64,11 +68,30 @@ resolver.define('getPanelData', async (req) => {
       });
     }
     
-    // Get approved decisions for this issue
+    // Get approved decisions for this issue and project
     const issueDecisions = await getDecisionsForIssue(issueData.id);
-    
-    // Get all project decisions for drift detection (always check on load)
     const projectDecisions = await getAllDecisions(issueData.fields.project.id);
+    
+    // Get dismissals for this issue
+    const dismissals = await getDismissals(issueData.id);
+    const dismissedHashes = new Set(dismissals.map(d => d.textHash));
+    
+    // Build set of approved decision text hashes
+    const approvedHashes = new Set(projectDecisions.map(d => hashText(d.text)));
+    
+    // Filter out dismissed candidates and those matching approved decisions
+    const filteredCandidates = candidates.filter(candidate => {
+      const candidateHash = hashText(candidate.text);
+      // Skip if dismissed
+      if (dismissedHashes.has(candidateHash)) {
+        return false;
+      }
+      // Skip if already approved
+      if (approvedHashes.has(candidateHash)) {
+        return false;
+      }
+      return true;
+    });
     
     // Detect drift on every panel load
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
@@ -86,7 +109,7 @@ resolver.define('getPanelData', async (req) => {
     return {
       issueId: issueData.id,
       issueKey: issueData.key,
-      candidates,
+      candidates: filteredCandidates,
       approvedDecisions: issueDecisions,
       drifts: unresolvedDrifts,
       projectDecisionCount: projectDecisions.length,
@@ -110,9 +133,19 @@ resolver.define('approveDecision', async (req) => {
   
   try {
     const accountId = req.context.accountId;
+    const decisionText = editedText || candidate.text;
+    
+    // Check for duplicate approval (same text already approved in project)
+    const projectDecisions = await getAllDecisions(projectId);
+    const textHash = hashText(decisionText);
+    const isDuplicate = projectDecisions.some(d => hashText(d.text) === textHash);
+    
+    if (isDuplicate) {
+      return { success: false, error: 'This decision has already been approved' };
+    }
     
     const decision = {
-      text: editedText || candidate.text,
+      text: decisionText,
       sourceIssueId: issueId,
       sourceIssueKey: issueKey,
       commentId: candidate.metadata?.commentId,
@@ -136,9 +169,23 @@ resolver.define('approveDecision', async (req) => {
  * Dismiss a decision candidate
  */
 resolver.define('dismissDecision', async (req) => {
-  // For candidates, we don't need to store dismissals (they just disappear from UI)
-  // This is a no-op that returns success
-  return { success: true };
+  const { candidate, issueId } = req.payload;
+  
+  try {
+    const accountId = req.context.accountId;
+    
+    const dismissal = {
+      issueId,
+      text: candidate.text,
+      dismissedBy: accountId,
+    };
+    
+    await saveDismissal(dismissal);
+    return { success: true };
+  } catch (error) {
+    console.error('Error dismissing candidate:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 /**

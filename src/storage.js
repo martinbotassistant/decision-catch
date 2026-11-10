@@ -8,6 +8,7 @@ const { storage } = require('@forge/api');
 const STORAGE_PREFIX = 'decision-catch';
 const DECISIONS_KEY = `${STORAGE_PREFIX}:decisions`;
 const DRIFT_RESOLUTIONS_KEY = `${STORAGE_PREFIX}:drift-resolutions`;
+const DISMISSALS_KEY = `${STORAGE_PREFIX}:dismissals`;
 
 /**
  * Save an approved decision
@@ -162,12 +163,66 @@ function generateId() {
 }
 
 /**
+ * Generate a hash for candidate text (simple hash for deduplication)
+ * @param {string} text
+ * @returns {string}
+ */
+function hashText(text) {
+  return text.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Save a dismissal (when user dismisses a candidate)
+ * @param {Object} dismissal
+ * @returns {Promise<Object>}
+ */
+async function saveDismissal(dismissal) {
+  const dismissals = await storage.get(DISMISSALS_KEY) || [];
+  
+  const savedDismissal = {
+    id: generateId(),
+    issueId: dismissal.issueId,
+    textHash: hashText(dismissal.text),
+    dismissedBy: dismissal.dismissedBy,
+    dismissedAt: Date.now(),
+  };
+
+  dismissals.push(savedDismissal);
+  await storage.set(DISMISSALS_KEY, dismissals);
+  
+  return savedDismissal;
+}
+
+/**
+ * Get dismissals for an issue
+ * @param {string} issueId
+ * @returns {Promise<Array>}
+ */
+async function getDismissals(issueId) {
+  const dismissals = await storage.get(DISMISSALS_KEY) || [];
+  return dismissals.filter(d => d.issueId === issueId);
+}
+
+/**
+ * Check if a candidate text has been dismissed for this issue
+ * @param {string} issueId
+ * @param {string} text
+ * @returns {Promise<boolean>}
+ */
+async function isDismissed(issueId, text) {
+  const dismissals = await getDismissals(issueId);
+  const textHash = hashText(text);
+  return dismissals.some(d => d.textHash === textHash);
+}
+
+/**
  * Clear all storage (for testing/reset)
  * @returns {Promise<void>}
  */
 async function clearAllStorage() {
   await storage.delete(DECISIONS_KEY);
   await storage.delete(DRIFT_RESOLUTIONS_KEY);
+  await storage.delete(DISMISSALS_KEY);
 }
 
 module.exports = {
@@ -179,5 +234,9 @@ module.exports = {
   saveDriftResolution,
   getDriftResolutions,
   isDriftResolved,
+  saveDismissal,
+  getDismissals,
+  isDismissed,
+  hashText,
   clearAllStorage,
 };

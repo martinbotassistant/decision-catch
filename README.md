@@ -218,6 +218,23 @@ Post-hackathon enhancements:
 - **Confluence integration**: Link to ADR documents
 - **GitHub integration**: Sync decisions with PR descriptions
 
+## 📋 Version History
+
+### v2.8.0 (Polish Pass for Demo)
+- **Candidate lifecycle**: Candidates disappear after Approve/Dismiss (no duplicates on reload)
+- **Dismissal storage**: Dismissed candidates persisted per issue and filtered from panel
+- **Duplicate prevention**: Prevents approving the same decision text twice
+- **Extractor precision**: Filters out questions (?), fragments (:), bullets (-), and task sentences
+- **Drift quality**: Improved scope violation detection (PAY-5 SSO now flags correctly), better messages ("uses X instead of Y"), strongest drift per decision, severity-based ordering
+- **UX improvements**: Spinner while loading, optimistic state updates on Approve/Dismiss, "Approved by X on date" metadata, cleaner header (removed duplicate title)
+- **Test coverage**: 79 passing tests (up from 67), including new tests for dismissals, precision filters, duplicate prevention, and drift deduplication
+
+### v2.7.0 (Live Deploy Success)
+- Native UI Kit issue panel with dynamic resolver bridge
+- Drift detection runs on every panel load
+- ADF text parsing for Jira v3 descriptions and comments
+- Fixed all deployment blockers
+
 ## 🐛 Known Limitations
 
 1. **Heuristic-based**: May miss subtle decisions or have false positives (by design for MVP)

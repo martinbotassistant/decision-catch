@@ -41,6 +41,9 @@ function detectDrift(issueText, approvedDecisions) {
   const lowerIssueText = issueText.toLowerCase();
   const issueKeywords = extractKeywordsFromText(issueText);
 
+  // Track strongest drift per decision (avoid duplicates)
+  const decisionDrifts = new Map();
+
   for (const decision of approvedDecisions) {
     const decisionKeywords = decision.keywords || [];
     const decisionTopics = decision.topics || [];
@@ -61,17 +64,33 @@ function detectDrift(issueText, approvedDecisions) {
     );
 
     if (contradiction) {
-      drifts.push({
+      const drift = {
         decision,
         type: contradiction.type,
         explanation: contradiction.explanation,
         confidence: contradiction.confidence,
         matchedPhrase: contradiction.matchedPhrase,
-      });
+      };
+
+      // Keep only the strongest drift per decision
+      const existing = decisionDrifts.get(decision.id);
+      if (!existing || contradiction.confidence > existing.confidence) {
+        decisionDrifts.set(decision.id, drift);
+      }
     }
   }
 
-  return drifts;
+  // Convert map to array and sort by severity (confidence)
+  const sortedDrifts = Array.from(decisionDrifts.values())
+    .sort((a, b) => {
+      // Scope violations first (highest confidence)
+      if (a.type === 'scope_violation' && b.type !== 'scope_violation') return -1;
+      if (b.type === 'scope_violation' && a.type !== 'scope_violation') return 1;
+      // Then by confidence
+      return b.confidence - a.confidence;
+    });
+
+  return sortedDrifts;
 }
 
 /**
@@ -82,66 +101,67 @@ function detectDrift(issueText, approvedDecisions) {
  * @returns {Object|null} Contradiction details or null
  */
 function detectContradiction(issueText, decisionText, decisionKeywords) {
-  // Type 1: Direct negation of a technology choice
-  // Decision: "we decided to use Postgres"
-  // Issue: "implementing with MongoDB" or "not using Postgres"
-  
+  // Type 1: Check for scope violations first (highest priority)
   for (const keyword of decisionKeywords) {
-    // Check if decision was affirmative about this keyword
+    const decisionIsNegative = 
+      decisionText.includes(`no ${keyword}`) ||
+      decisionText.includes(`not ${keyword}`) ||
+      decisionText.includes(`won't ${keyword}`) ||
+      (decisionText.includes('excluded') && decisionText.includes(keyword)) ||
+      (decisionText.includes('out of scope') && decisionText.includes(keyword)) ||
+      (decisionText.includes('deferred') && decisionText.includes(keyword));
+
+    if (decisionIsNegative) {
+      // Check if issue mentions this keyword in affirmative context
+      if (issueText.includes(keyword)) {
+        return {
+          type: 'scope_violation',
+          explanation: `Issue implements "${keyword}", but decision was to exclude it from scope`,
+          confidence: 0.85,
+          matchedPhrase: keyword,
+        };
+      }
+    }
+  }
+
+  // Type 2: Check for alternative technology usage
+  for (const keyword of decisionKeywords) {
     const decisionIsAffirmative = 
       decisionText.includes(`use ${keyword}`) ||
       decisionText.includes(`using ${keyword}`) ||
       decisionText.includes(`chose ${keyword}`) ||
-      decisionText.includes(`selected ${keyword}`);
+      decisionText.includes(`selected ${keyword}`) ||
+      decisionText.includes(`going with ${keyword}`) ||
+      decisionText.includes(`decided ${keyword}`);
 
     if (decisionIsAffirmative) {
-      // Check for negation in issue
+      // Check for use of a different technology in the same category
+      const issueUsage = extractUsedTechnologies(issueText);
+      
+      if (issueUsage.length > 0) {
+        for (const usedTech of issueUsage) {
+          if (usedTech !== keyword) {
+            const sameCategory = hasSameCategory(keyword, usedTech);
+            if (sameCategory) {
+              return {
+                type: 'alternative',
+                explanation: `Issue uses "${usedTech}" instead of decided "${keyword}"`,
+                confidence: 0.75,
+                matchedPhrase: usedTech,
+              };
+            }
+          }
+        }
+      }
+
+      // Check for explicit negation in issue
       for (const pattern of NEGATION_PATTERNS) {
         const match = pattern.exec(issueText);
         if (match && issueText.includes(keyword)) {
           return {
             type: 'negation',
-            explanation: `Issue appears to avoid "${keyword}", but decision was to use it`,
+            explanation: `Issue avoids "${keyword}", but decision was to use it`,
             confidence: 0.7,
-            matchedPhrase: match[0],
-          };
-        }
-      }
-
-      // Check for use of a different technology in the same category
-      const issueUsage = extractUsedTechnologies(issueText);
-      const decisionUsage = extractUsedTechnologies(decisionText);
-      
-      if (issueUsage.length > 0 && !issueUsage.includes(keyword)) {
-        // Check if they're in the same category
-        const sameCategory = hasSameCategory(keyword, issueUsage[0]);
-        if (sameCategory) {
-          return {
-            type: 'alternative',
-            explanation: `Issue uses "${issueUsage[0]}" instead of decided "${keyword}"`,
-            confidence: 0.6,
-            matchedPhrase: issueUsage[0],
-          };
-        }
-      }
-    }
-
-    // Check if decision was negative about this keyword
-    const decisionIsNegative = 
-      decisionText.includes(`not ${keyword}`) ||
-      decisionText.includes(`won't ${keyword}`) ||
-      decisionText.includes(`excluded`) && decisionText.includes(keyword) ||
-      decisionText.includes(`out of scope`) && decisionText.includes(keyword);
-
-    if (decisionIsNegative) {
-      // Check for affirmative use in issue
-      for (const pattern of USAGE_PATTERNS) {
-        const match = pattern.exec(issueText);
-        if (match && issueText.includes(keyword)) {
-          return {
-            type: 'scope_violation',
-            explanation: `Issue includes "${keyword}", but it was decided as out of scope`,
-            confidence: 0.8,
             matchedPhrase: match[0],
           };
         }

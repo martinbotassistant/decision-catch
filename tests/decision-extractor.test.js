@@ -317,4 +317,44 @@ describe('Decision Extractor', () => {
       expect(postgresCount).toBe(1);
     });
   });
+
+  describe('shouldSkipSentence', () => {
+    const { shouldSkipSentence } = require('../src/decision-extractor');
+
+    it('should skip questions ending with ?', () => {
+      expect(shouldSkipSentence("Wait - didn't we decide SSO was out of scope for v1?")).toBe(true);
+      expect(shouldSkipSentence("Should we use PostgreSQL?")).toBe(true);
+    });
+
+    it('should skip fragments ending with :', () => {
+      expect(shouldSkipSentence("Also out of scope for v1:")).toBe(true);
+      expect(shouldSkipSentence("The following items:")).toBe(true);
+    });
+
+    it('should skip bullet/list fragments starting with -', () => {
+      expect(shouldSkipSentence("- Advanced fraud (we'll use Stripe's basic checks)")).toBe(true);
+      expect(shouldSkipSentence("* Another list item")).toBe(true);
+    });
+
+    it('should skip task sentences with Check/Wait/Also', () => {
+      expect(shouldSkipSentence("Check PAY-124, we explicitly deferred this to v2")).toBe(true);
+      expect(shouldSkipSentence("Wait for approval before implementing")).toBe(true);
+      expect(shouldSkipSentence("Also need to verify the API")).toBe(true);
+    });
+
+    it('should skip descriptive task sentences', () => {
+      expect(shouldSkipSentence("Define what goes into v1 and what's deferred to v2")).toBe(true);
+      expect(shouldSkipSentence("Evaluate the different options")).toBe(true);
+      expect(shouldSkipSentence("Determine the best approach")).toBe(true);
+      expect(shouldSkipSentence("Need to investigate this further")).toBe(true);
+      expect(shouldSkipSentence("Must complete this task first")).toBe(true);
+      expect(shouldSkipSentence("Should consider all alternatives")).toBe(true);
+    });
+
+    it('should not skip valid decisions', () => {
+      expect(shouldSkipSentence("We decided to use PostgreSQL for the database")).toBe(false);
+      expect(shouldSkipSentence("Decision: no SSO implementation in v1, deferred to v2")).toBe(false);
+      expect(shouldSkipSentence("Going with React for the frontend")).toBe(false);
+    });
+  });
 });

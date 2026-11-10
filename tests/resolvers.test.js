@@ -43,6 +43,10 @@ const mockStorage = {
   getDecisionsForIssue: jest.fn(),
   isDriftResolved: jest.fn(),
   saveDriftResolution: jest.fn(),
+  saveDismissal: jest.fn(),
+  getDismissals: jest.fn(),
+  isDismissed: jest.fn(),
+  hashText: jest.fn((text) => text.toLowerCase().trim().replace(/\s+/g, ' ')),
 };
 
 jest.mock('../src/storage', () => mockStorage);
@@ -59,6 +63,11 @@ const resolvers = require('../src/resolvers').handler;
 describe('Resolver Functions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Set default mock return values
+    mockStorage.getDismissals.mockResolvedValue([]);
+    mockStorage.getAllDecisions.mockResolvedValue([]);
+    mockStorage.getDecisionsForIssue.mockResolvedValue([]);
+    mockStorage.isDriftResolved.mockResolvedValue(null);
   });
 
   describe('approveDecision', () => {
@@ -155,19 +164,78 @@ describe('Resolver Functions', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('Storage error');
     });
+
+    it('should prevent duplicate approvals', async () => {
+      const existingDecision = {
+        id: 'decision-existing',
+        text: 'We decided to use PostgreSQL',
+        projectId: 'proj-123',
+      };
+
+      mockStorage.getAllDecisions.mockResolvedValue([existingDecision]);
+
+      const result = await resolvers.approveDecision({
+        payload: {
+          candidate: { 
+            text: ' we decided to use  postgresql ', // Different formatting, same content
+            topics: [], 
+            keywords: [], 
+            metadata: {} 
+          },
+          issueId: 'issue-123',
+          issueKey: 'PAY-2',
+          projectId: 'proj-123',
+        },
+        context: {
+          accountId: 'user-456',
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('This decision has already been approved');
+      expect(mockStorage.saveDecision).not.toHaveBeenCalled();
+    });
   });
 
   describe('dismissDecision', () => {
-    it('should return success without storing', async () => {
+    it('should save dismissal to storage', async () => {
+      const mockCandidate = {
+        text: 'Some decision candidate',
+      };
+      
+      mockStorage.saveDismissal.mockResolvedValue({ id: 'dismissal-123' });
+
       const result = await resolvers.dismissDecision({
         payload: {
-          candidate: { text: 'test' },
+          candidate: mockCandidate,
+          issueId: 'issue-123',
         },
-        context: {},
+        context: {
+          accountId: 'user-123',
+        },
       });
 
       expect(result.success).toBe(true);
-      expect(mockStorage.saveDecision).not.toHaveBeenCalled();
+      expect(mockStorage.saveDismissal).toHaveBeenCalledWith({
+        issueId: 'issue-123',
+        text: mockCandidate.text,
+        dismissedBy: 'user-123',
+      });
+    });
+
+    it('should handle errors gracefully', async () => {
+      mockStorage.saveDismissal.mockRejectedValue(new Error('Storage error'));
+
+      const result = await resolvers.dismissDecision({
+        payload: {
+          candidate: { text: 'test' },
+          issueId: 'issue-123',
+        },
+        context: { accountId: 'user-123' },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Storage error');
     });
   });
 

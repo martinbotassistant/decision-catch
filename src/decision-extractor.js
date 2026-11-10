@@ -82,6 +82,11 @@ function extractDecisions(text, metadata = {}) {
     .filter(s => s.length > 10); // Ignore very short fragments
 
   sentences.forEach((sentence, index) => {
+    // Filter out false positives
+    if (shouldSkipSentence(sentence)) {
+      return;
+    }
+
     for (const pattern of DECISION_PATTERNS) {
       if (pattern.test(sentence)) {
         const decision = {
@@ -102,6 +107,40 @@ function extractDecisions(text, metadata = {}) {
   });
 
   return candidates;
+}
+
+/**
+ * Check if a sentence should be skipped (not a decision)
+ * @param {string} sentence
+ * @returns {boolean}
+ */
+function shouldSkipSentence(sentence) {
+  // Skip questions
+  if (sentence.endsWith('?')) {
+    return true;
+  }
+
+  // Skip fragments ending with ':' (usually introduce a list)
+  if (sentence.endsWith(':')) {
+    return true;
+  }
+
+  // Skip bullet/list fragments starting with '-' or '*'
+  if (/^[-*]\s/.test(sentence)) {
+    return true;
+  }
+
+  // Skip task/meta sentences with 'Check', 'Wait', 'Also'
+  if (/^(Check|Wait|Also)\s/i.test(sentence)) {
+    return true;
+  }
+
+  // Skip descriptive task sentences (Define, Evaluate, Determine, etc.)
+  if (/^(Define|Evaluate|Determine|Need to|Must|Should)\s/i.test(sentence)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -209,6 +248,7 @@ function extractKeywords(text) {
 module.exports = {
   adfToText,
   extractDecisions,
+  shouldSkipSentence,
   containsNonLatinScript,
   calculateConfidence,
   extractTopics,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import ForgeReconciler, { Text, Strong, Em, Button, ButtonGroup, Box, Stack, Inline, Heading, Lozenge, SectionMessage, useProductContext } from '@forge/react';
+import ForgeReconciler, { Text, Strong, Em, Button, ButtonGroup, Box, Stack, Inline, Heading, Lozenge, SectionMessage, Spinner, useProductContext } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
 const App = () => {
@@ -33,6 +33,14 @@ const App = () => {
 
   const handleApprove = async (candidate) => {
     try {
+      // Optimistic update - remove from candidates immediately
+      setData(prev => ({
+        ...prev,
+        candidates: prev.candidates.filter(c => c.text !== candidate.text)
+      }));
+      setEditingCandidate(null);
+      setEditedText('');
+      
       const result = await invoke('approveDecision', {
         candidate,
         issueId: data.issueId,
@@ -42,23 +50,39 @@ const App = () => {
       });
       
       if (result.success) {
-        setEditingCandidate(null);
-        setEditedText('');
-        await loadData(); // Reload to show updated state
+        // Reload to get updated approved decisions list
+        await loadData();
       } else {
         setError(result.error || 'Failed to approve decision');
+        // Revert optimistic update on error
+        await loadData();
       }
     } catch (err) {
       setError(err.message || 'Failed to approve decision');
+      await loadData(); // Revert
     }
   };
 
   const handleDismiss = async (candidate) => {
     try {
-      await invoke('dismissDecision', { candidate });
-      await loadData(); // Reload
+      // Optimistic update - remove from candidates immediately
+      setData(prev => ({
+        ...prev,
+        candidates: prev.candidates.filter(c => c.text !== candidate.text)
+      }));
+      
+      const result = await invoke('dismissDecision', { 
+        candidate,
+        issueId: data.issueId 
+      });
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to dismiss decision');
+        await loadData(); // Revert on error
+      }
     } catch (err) {
       setError(err.message || 'Failed to dismiss decision');
+      await loadData(); // Revert
     }
   };
 
@@ -85,7 +109,10 @@ const App = () => {
   if (loading) {
     return (
       <Box padding="space.200">
-        <Text>Loading Decision Catch...</Text>
+        <Stack space="space.200" alignInline="center">
+          <Spinner size="medium" />
+          <Text>Loading...</Text>
+        </Stack>
       </Box>
     );
   }
@@ -111,11 +138,6 @@ const App = () => {
   return (
     <Box padding="space.200">
       <Stack space="space.300">
-        {/* Header */}
-        <Box>
-          <Heading size="medium">🎯 Decision Catch</Heading>
-          <Text>Track decisions and detect drift</Text>
-        </Box>
 
         {/* Drift Warnings */}
         {data.drifts && data.drifts.length > 0 && (
@@ -190,9 +212,10 @@ const App = () => {
                 <Box key={index} padding="space.100" backgroundColor="color.background.success">
                   <Stack space="space.100">
                     <Text>"{decision.text}"</Text>
-                    <Text>
-                      From {decision.sourceIssueKey} • {new Date(decision.approvedAt).toLocaleDateString()}
-                    </Text>
+                    <Inline space="space.100">
+                      <Text><Em>From {decision.sourceIssueKey}</Em></Text>
+                      <Text><Em>Approved by {decision.approvedBy || 'unknown'} on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em></Text>
+                    </Inline>
                     {decision.topics && decision.topics.length > 0 && (
                       <Inline space="space.050">
                         {decision.topics.map((topic, i) => (

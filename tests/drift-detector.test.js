@@ -210,4 +210,91 @@ describe('Drift Detector', () => {
       expect(hasSameCategory('React', 'Vue')).toBe(true);
     });
   });
+
+  describe('drift deduplication and ordering', () => {
+    it('should show only strongest drift per decision', () => {
+      const issueText = 'Implementing OAuth SSO with MongoDB database';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'Decision: no SSO implementation in v1, deferred to v2',
+          keywords: ['sso'],
+          topics: ['security'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      
+      // Should only get one drift for decision-1 (scope violation, not multiple)
+      const decision1Drifts = drifts.filter(d => d.decision.id === 'decision-1');
+      expect(decision1Drifts.length).toBe(1);
+      expect(decision1Drifts[0].type).toBe('scope_violation');
+    });
+
+    it('should order drifts by severity (scope violations first)', () => {
+      const issueText = 'Using MongoDB and implementing SSO';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'We decided to use PostgreSQL',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+        {
+          id: 'decision-2',
+          text: 'Decision: no SSO, deferred to v2',
+          keywords: ['sso'],
+          topics: ['security'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      
+      // Scope violation should come first (SSO)
+      expect(drifts.length).toBeGreaterThan(0);
+      const firstDrift = drifts[0];
+      expect(firstDrift.type).toBe('scope_violation');
+      expect(firstDrift.decision.keywords).toContain('sso');
+    });
+
+    it('should detect SSO scope violation', () => {
+      const issueText = 'Add SSO login with OAuth2';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'Decision: no SSO implementation in v1, deferred to v2',
+          keywords: ['sso'],
+          topics: ['security'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      
+      expect(drifts.length).toBeGreaterThan(0);
+      expect(drifts[0].type).toBe('scope_violation');
+      expect(drifts[0].explanation).toMatch(/sso/i);
+      expect(drifts[0].explanation).toMatch(/exclude.*from scope/i);
+    });
+
+    it('should say "uses X instead of Y" for alternatives', () => {
+      const issueText = 'Using MongoDB for database storage';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'We decided to use PostgreSQL for the database',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      
+      expect(drifts.length).toBeGreaterThan(0);
+      const alternativeDrift = drifts.find(d => d.type === 'alternative');
+      expect(alternativeDrift).toBeDefined();
+      expect(alternativeDrift.explanation).toMatch(/uses.*instead of/i);
+      expect(alternativeDrift.explanation).toContain('mongodb');
+      expect(alternativeDrift.explanation).toContain('postgresql');
+    });
+  });
 });
