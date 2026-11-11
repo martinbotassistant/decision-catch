@@ -1,214 +1,371 @@
-/**
- * Main Forge resolver for Decision Catch UI panel
- */
+import React, { useEffect, useState } from 'react';
+import ForgeReconciler, { 
+  Text, 
+  Strong, 
+  Em, 
+  Button, 
+  ButtonGroup, 
+  Box, 
+  Stack, 
+  Inline, 
+  Heading, 
+  Lozenge, 
+  SectionMessage, 
+  Spinner, 
+  useProductContext,
+  Modal,
+  ModalTransition,
+  TextArea,
+  User,
+} from '@forge/react';
+import { invoke } from '@forge/bridge';
 
-const Resolver = require('@forge/resolver').default;
-const { extractDecisions, adfToText } = require('./decision-extractor');
-const { detectDrift } = require('./drift-detector');
-const {
-  saveDecision,
-  getAllDecisions,
-  getDecisionsForIssue,
-  updateDecision,
-  deleteDecision,
-  saveDriftResolution,
-  getDriftResolutions,
-  isDriftResolved,
-} = require('./storage');
-const { fetchIssueData } = require('./jira-api');
+const App = () => {
+  const context = useProductContext();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+  const [editingCandidate, setEditingCandidate] = useState(null);
+  const [editedText, setEditedText] = useState('');
+  const [resolvingDrift, setResolvingDrift] = useState(null);
+  const [resolutionType, setResolutionType] = useState(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [showResolvedSection, setShowResolvedSection] = useState(false);
 
-const resolver = new Resolver();
-
-/**
- * Get panel data for an issue
- * Returns candidate decisions, approved decisions, and drift warnings
- */
-resolver.define('getPanelData', async (req) => {
-  const { issueId, issueKey } = req.context.extension;
-  
-  try {
-    // Fetch issue data from Jira (using issueKey is more reliable)
-    const issueData = await fetchIssueData(issueKey || issueId);
-    
-    // Extract candidate decisions from description and comments
-    const candidates = [];
-    
-    // Check description
-    if (issueData.fields.description) {
-      const descCandidates = extractDecisions(issueData.fields.description, {
-        source: 'description',
-        author: issueData.fields.creator?.displayName,
-        timestamp: new Date(issueData.fields.created).getTime(),
-      });
-      candidates.push(...descCandidates);
-    }
-    
-    // Check comments
-    if (issueData.fields.comment?.comments) {
-      issueData.fields.comment.comments.forEach(comment => {
-        const commentCandidates = extractDecisions(comment.body, {
-          source: 'comment',
-          commentId: comment.id,
-          author: comment.author?.displayName,
-          timestamp: new Date(comment.created).getTime(),
-        });
-        candidates.push(...commentCandidates);
-      });
-    }
-    
-    // Get approved decisions for this issue
-    const issueDecisions = await getDecisionsForIssue(issueData.id);
-    
-    // Get all project decisions for drift detection (always check on load)
-    const projectDecisions = await getAllDecisions(issueData.fields.project.id);
-    
-    // Detect drift on every panel load
-    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
-    
-    // Filter out resolved drifts
-    const unresolvedDrifts = [];
-    for (const drift of drifts) {
-      const resolution = await isDriftResolved(issueData.id, drift.decision.id);
-      if (!resolution) {
-        unresolvedDrifts.push(drift);
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await invoke('getPanelData', {});
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setData(result);
       }
+    } catch (err) {
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
     }
-    
-    return {
-      issueId: issueData.id,
-      issueKey: issueData.key,
-      candidates,
-      approvedDecisions: issueDecisions,
-      drifts: unresolvedDrifts,
-      projectDecisionCount: projectDecisions.length,
-      projectId: issueData.fields.project.id,
-    };
-  } catch (error) {
-    console.error('Error in getPanelData:', error);
-    return {
-      error: error.message,
-      issueId,
-      issueKey,
-    };
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleApprove = async (candidate) => {
+    try {
+      // Optimistic update - remove from candidates immediately
+      setData(prev => ({
+        ...prev,
+        candidates: prev.candidates.filter(c => c.text !== candidate.text)
+      }));
+      setEditingCandidate(null);
+      setEditedText('');
+      
+      const result = await invoke('approveDecision', {
+        candidate,
+        issueId: data.issueId,
+        issueKey: data.issueKey,
+        projectId: data.projectId,
+        editedText: editingCandidate === candidate ? editedText : null,
+      });
+      
+      if (result.success) {
+        // Reload to get updated approved decisions list
+        await loadData();
+      } else {
+        setError(result.error || 'Failed to approve decision');
+        // Revert optimistic update on error
+        await loadData();
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to approve decision');
+      await loadData(); // Revert
+    }
+  };
+
+  const handleDismiss = async (candidate) => {
+    try {
+      // Optimistic update - remove from candidates immediately
+      setData(prev => ({
+        ...prev,
+        candidates: prev.candidates.filter(c => c.text !== candidate.text)
+      }));
+      
+      const result = await invoke('dismissDecision', { 
+        candidate,
+        issueId: data.issueId 
+      });
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to dismiss decision');
+        await loadData(); // Revert on error
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to dismiss decision');
+      await loadData(); // Revert
+    }
+  };
+
+  const handleResolveDrift = (drift, type) => {
+    setResolvingDrift(drift);
+    setResolutionType(type);
+    setResolutionNotes('');
+  };
+
+  const handleConfirmResolution = async () => {
+    if (!resolvingDrift || !resolutionType) return;
+
+    try {
+      const result = await invoke('resolveDrift', {
+        issueId: data.issueId,
+        issueKey: data.issueKey,
+        decisionId: resolvingDrift.decision.id,
+        drift: resolvingDrift,
+        resolutionType,
+        notes: resolutionNotes || '',
+      });
+      
+      if (result.success) {
+        if (result.warnings && result.warnings.length > 0) {
+          setError(`Resolved with warnings: ${result.warnings.join(', ')}`);
+        }
+        setResolvingDrift(null);
+        setResolutionType(null);
+        setResolutionNotes('');
+        await loadData(); // Reload to show in resolved section
+      } else {
+        setError(result.error || 'Failed to resolve drift');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to resolve drift');
+    }
+  };
+
+  const handleCancelResolution = () => {
+    setResolvingDrift(null);
+    setResolutionType(null);
+    setResolutionNotes('');
+  };
+
+  if (loading) {
+    return (
+      <Box padding="space.200">
+        <Stack space="space.200" alignInline="center">
+          <Spinner size="medium" />
+          <Text>Loading...</Text>
+        </Stack>
+      </Box>
+    );
   }
-});
 
-/**
- * Approve a decision candidate
- */
-resolver.define('approveDecision', async (req) => {
-  const { candidate, issueId, issueKey, projectId, editedText } = req.payload;
-  
-  try {
-    const decision = {
-      text: editedText || candidate.text,
-      sourceIssueId: issueId,
-      sourceIssueKey: issueKey,
-      commentId: candidate.metadata?.commentId,
-      author: candidate.metadata?.author,
-      timestamp: candidate.metadata?.timestamp,
-      topics: candidate.topics,
-      keywords: candidate.keywords,
-      projectId,
-      approvedBy: req.context.accountId,
-    };
-    
-    const saved = await saveDecision(decision);
-    return { success: true, decision: saved };
-  } catch (error) {
-    console.error('Error approving decision:', error);
-    return { success: false, error: error.message };
+  if (error) {
+    return (
+      <Box padding="space.200">
+        <SectionMessage appearance="error">
+          <Text><Strong>Error:</Strong> {error}</Text>
+        </SectionMessage>
+      </Box>
+    );
   }
-});
 
-/**
- * Dismiss a decision candidate
- */
-resolver.define('dismissDecision', async (req) => {
-  // For candidates, we don't need to store dismissals (they just disappear from UI)
-  // This is a no-op that returns success
-  return { success: true };
-});
-
-/**
- * Update an approved decision
- */
-resolver.define('updateDecision', async (req) => {
-  const { decisionId, updates } = req.payload;
-  
-  try {
-    const updated = await updateDecision(decisionId, updates);
-    return { success: true, decision: updated };
-  } catch (error) {
-    console.error('Error updating decision:', error);
-    return { success: false, error: error.message };
+  if (!data) {
+    return (
+      <Box padding="space.200">
+        <Text>No data available</Text>
+      </Box>
+    );
   }
-});
 
-/**
- * Delete an approved decision
- */
-resolver.define('deleteDecision', async (req) => {
-  const { decisionId } = req.payload;
-  
-  try {
-    const deleted = await deleteDecision(decisionId);
-    return { success: deleted };
-  } catch (error) {
-    console.error('Error deleting decision:', error);
-    return { success: false, error: error.message };
-  }
-});
+  return (
+    <Box padding="space.200">
+      <Stack space="space.300">
 
-/**
- * Resolve a drift warning
- */
-resolver.define('resolveDrift', async (req) => {
-  const { issueId, issueKey, decisionId, resolutionType, notes } = req.payload;
-  
-  try {
-    const resolution = {
-      issueId,
-      issueKey,
-      decisionId,
-      resolutionType, // 'intentional_change' or 'not_a_conflict'
-      notes,
-      resolvedBy: req.context.accountId,
-    };
-    
-    // If intentional change, we might want to create a superseding decision
-    // For MVP, just record the resolution
-    
-    const saved = await saveDriftResolution(resolution);
-    return { success: true, resolution: saved };
-  } catch (error) {
-    console.error('Error resolving drift:', error);
-    return { success: false, error: error.message };
-  }
-});
+        {/* Drift Warnings */}
+        {data.drifts && data.drifts.length > 0 && (
+          <Box>
+            <Heading size="small">⚠️ Drift Detected</Heading>
+            <Stack space="space.200">
+              {data.drifts.map((drift, index) => (
+                <SectionMessage key={index} appearance="warning">
+                  <Stack space="space.100">
+                    <Text>
+                      <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
+                    </Text>
+                    <Text>
+                      <Em>{drift.explanation}</Em>
+                    </Text>
+                    <Text>
+                      Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
+                    </Text>
+                    <ButtonGroup>
+                      <Button onClick={() => handleResolveDrift(drift, 'intentional_change')}>Mark as intentional change</Button>
+                      <Button onClick={() => handleResolveDrift(drift, 'not_a_conflict')}>Not a conflict</Button>
+                    </ButtonGroup>
+                  </Stack>
+                </SectionMessage>
+              ))}
+            </Stack>
+          </Box>
+        )}
 
-/**
- * Get all decisions for a project
- */
-resolver.define('getProjectDecisions', async (req) => {
-  const { projectId } = req.payload;
-  
-  try {
-    const decisions = await getAllDecisions(projectId);
-    return { success: true, decisions };
-  } catch (error) {
-    console.error('Error getting project decisions:', error);
-    return { success: false, error: error.message };
-  }
-});
+        {/* Resolved Drifts */}
+        {data.resolvedDrifts && data.resolvedDrifts.length > 0 && (
+          <Box>
+            <Button 
+              appearance="subtle" 
+              onClick={() => setShowResolvedSection(!showResolvedSection)}
+            >
+              {showResolvedSection ? '▼' : '▶'} Resolved ({data.resolvedDrifts.length})
+            </Button>
+            {showResolvedSection && (
+              <Stack space="space.200">
+                {data.resolvedDrifts.map((drift, index) => (
+                  <Box key={index} padding="space.100" backgroundColor="color.background.success.subtle">
+                    <Stack space="space.100">
+                      <Inline space="space.100">
+                        <Lozenge appearance="success">RESOLVED</Lozenge>
+                        <Text>
+                          <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
+                        </Text>
+                      </Inline>
+                      <Text>
+                        <Em>{drift.explanation}</Em>
+                      </Text>
+                      <Text>
+                        Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
+                      </Text>
+                      <Text>
+                        <Em>
+                          Resolved as {drift.resolution.resolutionType.replace(/_/g, ' ')} 
+                          {' '}by {drift.resolution.resolvedBy}
+                          {' '}on {new Date(drift.resolution.resolvedAt).toLocaleDateString()}
+                        </Em>
+                      </Text>
+                      {drift.resolution.notes && (
+                        <Text>
+                          <Strong>Note:</Strong> {drift.resolution.notes}
+                        </Text>
+                      )}
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
+        )}
 
-// Export resolver functions for backend calls
-module.exports = resolver.getDefinitions();
+        {/* Candidate Decisions */}
+        <Box>
+          <Heading size="small">📝 Candidate Decisions ({data.candidates?.length || 0})</Heading>
+          {data.candidates && data.candidates.length > 0 ? (
+            <Stack space="space.200">
+              {data.candidates.map((candidate, index) => (
+                <Box key={index} padding="space.100" backgroundColor="color.background.neutral">
+                  <Stack space="space.100">
+                    <Text>"{candidate.text}"</Text>
+                    <Inline space="space.100">
+                      <Lozenge appearance="default">{`${candidate.metadata?.source} by ${candidate.metadata?.author || "unknown"}`}</Lozenge>
+                      <Lozenge appearance={candidate.confidence > 0.7 ? 'success' : candidate.confidence > 0.4 ? 'default' : 'removed'}>
+                        {candidate.confidence > 0.7 ? 'High confidence' : candidate.confidence > 0.4 ? 'Medium' : 'Low'}
+                      </Lozenge>
+                    </Inline>
+                    {candidate.topics && candidate.topics.length > 0 && (
+                      <Inline space="space.050">
+                        {candidate.topics.map((topic, i) => (
+                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
+                        ))}
+                      </Inline>
+                    )}
+                    <ButtonGroup>
+                      <Button appearance="primary"
+                        onClick={() => handleApprove(candidate)}>✓ Approve</Button>
+                      <Button onClick={() => handleDismiss(candidate)}>Dismiss</Button>
+                    </ButtonGroup>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          ) : (
+            <Text>No candidate decisions found in this issue.</Text>
+          )}
+        </Box>
 
-// Export main handler that serves the UI Kit frontend
-exports.handler = async (event, context) => {
-  // For UI rendering, delegate to the frontend
-  const frontend = require('./frontend/index.jsx');
-  return frontend;
+        {/* Approved Decisions */}
+        {data.approvedDecisions && data.approvedDecisions.length > 0 && (
+          <Box>
+            <Heading size="small">✅ Approved Decisions ({data.approvedDecisions.length})</Heading>
+            <Stack space="space.200">
+              {data.approvedDecisions.map((decision, index) => (
+                <Box key={index} padding="space.100" backgroundColor="color.background.success">
+                  <Stack space="space.100">
+                    <Text>"{decision.text}"</Text>
+                    <Inline space="space.100">
+                      <Text><Em>From {decision.sourceIssueKey}</Em></Text>
+                      <Text><Em>Approved by {decision.approvedBy || 'unknown'} on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em></Text>
+                    </Inline>
+                    {decision.topics && decision.topics.length > 0 && (
+                      <Inline space="space.050">
+                        {decision.topics.map((topic, i) => (
+                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
+                        ))}
+                      </Inline>
+                    )}
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
+        {/* Project Stats */}
+        {data.projectDecisionCount > 0 && (
+          <Text>
+            <Em>{data.projectDecisionCount} decision(s) tracked in this project</Em>
+          </Text>
+        )}
+
+        {/* Resolution Modal */}
+        <ModalTransition>
+          {resolvingDrift && (
+            <Modal>
+              <Stack space="space.300">
+                <Heading size="medium">Resolve Drift</Heading>
+                <Text>
+                  <Strong>Drift:</Strong> {resolvingDrift.explanation}
+                </Text>
+                <Text>
+                  <Strong>Resolution:</Strong> {resolutionType === 'intentional_change' ? 'Intentional change' : 'Not a conflict'}
+                </Text>
+                <TextArea
+                  label="Notes (optional)"
+                  placeholder="Add any notes about this resolution..."
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                />
+                <Inline space="space.200">
+                  <Button 
+                    appearance="primary" 
+                    onClick={handleConfirmResolution}
+                  >
+                    Confirm
+                  </Button>
+                  <Button onClick={handleCancelResolution}>
+                    Cancel
+                  </Button>
+                </Inline>
+              </Stack>
+            </Modal>
+          )}
+        </ModalTransition>
+      </Stack>
+    </Box>
+  );
 };
+
+ForgeReconciler.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

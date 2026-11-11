@@ -3,6 +3,7 @@
  */
 
 const Resolver = require('@forge/resolver').default;
+const { requestJira } = require('@forge/bridge');
 const { extractDecisions, adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const {
@@ -23,6 +24,64 @@ const {
 const { fetchIssueData } = require('./jira-api');
 
 const resolver = new Resolver();
+
+/**
+ * Build ADF comment for drift resolution
+ * @param {Object} drift
+ * @param {string} resolutionType
+ * @param {string} resolvedBy
+ * @param {string} notes
+ * @returns {Object} ADF document
+ */
+function buildDriftResolutionComment(drift, resolutionType, resolvedBy, notes) {
+  const resolutionLabel = resolutionType === 'intentional_change' 
+    ? 'intentional change' 
+    : 'not a conflict';
+  
+  const content = [
+    {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: '🎯 Decision Catch: drift "',
+        },
+        {
+          type: 'text',
+          text: drift.explanation,
+          marks: [{ type: 'em' }],
+        },
+        {
+          type: 'text',
+          text: `" resolved as ${resolutionLabel} by ${resolvedBy}.`,
+        },
+      ],
+    },
+  ];
+
+  if (notes) {
+    content.push({
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: 'Note: ',
+          marks: [{ type: 'strong' }],
+        },
+        {
+          type: 'text',
+          text: notes,
+        },
+      ],
+    });
+  }
+
+  return {
+    version: 1,
+    type: 'doc',
+    content,
+  };
+}
 
 /**
  * Get panel data for an issue
@@ -98,12 +157,18 @@ resolver.define('getPanelData', async (req) => {
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
     
-    // Filter out resolved drifts
+    // Separate unresolved and resolved drifts
     const unresolvedDrifts = [];
+    const resolvedDrifts = [];
     for (const drift of drifts) {
       const resolution = await isDriftResolved(issueData.id, drift.decision.id);
       if (!resolution) {
         unresolvedDrifts.push(drift);
+      } else {
+        resolvedDrifts.push({
+          ...drift,
+          resolution,
+        });
       }
     }
     
@@ -113,6 +178,7 @@ resolver.define('getPanelData', async (req) => {
       candidates: filteredCandidates,
       approvedDecisions: issueDecisions,
       drifts: unresolvedDrifts,
+      resolvedDrifts,
       projectDecisionCount: projectDecisions.length,
       projectId: issueData.fields.project.id,
     };
@@ -223,7 +289,7 @@ resolver.define('deleteDecision', async (req) => {
  * Resolve a drift warning
  */
 resolver.define('resolveDrift', async (req) => {
-  const { issueId, issueKey, decisionId, resolutionType, notes } = req.payload;
+  const { issueId, issueKey, decisionId, drift, resolutionType, notes } = req.payload;
   
   try {
     const accountId = req.context.accountId;
@@ -237,11 +303,58 @@ resolver.define('resolveDrift', async (req) => {
       resolvedBy: accountId,
     };
     
-    // If intentional change, we might want to create a superseding decision
-    // For MVP, just record the resolution
-    
+    // Save resolution to storage first
     const saved = await saveDriftResolution(resolution);
-    return { success: true, resolution: saved };
+    
+    // Best-effort: Post Jira comment and add label
+    const warnings = [];
+    
+    // Try to post comment
+    try {
+      const commentBody = buildDriftResolutionComment(
+        drift,
+        resolutionType,
+        accountId,
+        notes
+      );
+      
+      await requestJira(`/rest/api/3/issue/${issueKey}/comment`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ body: commentBody }),
+      });
+    } catch (commentError) {
+      console.error('Failed to post Jira comment:', commentError);
+      warnings.push('Could not post Jira comment');
+    }
+    
+    // Try to add label
+    try {
+      await requestJira(`/rest/api/3/issue/${issueKey}`, {
+        method: 'PUT',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          update: {
+            labels: [{ add: 'decision-drift-resolved' }],
+          },
+        }),
+      });
+    } catch (labelError) {
+      console.error('Failed to add Jira label:', labelError);
+      warnings.push('Could not add label to issue');
+    }
+    
+    return { 
+      success: true, 
+      resolution: saved,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
   } catch (error) {
     console.error('Error resolving drift:', error);
     return { success: false, error: error.message };

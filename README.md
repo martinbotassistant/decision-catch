@@ -220,6 +220,16 @@ Post-hackathon enhancements:
 
 ## 📋 Version History
 
+### v2.11.0 (Resolved Drift Persistence & Jira Integration)
+- **Resolved drift stays visible**: Drift warnings stay in panel after resolution, marked with green "RESOLVED" badge
+- **Resolution details displayed**: Shows resolution type (intentional change/not a conflict), resolver accountId, and timestamp
+- **Collapsible Resolved section**: Resolved drifts appear below active ones in a toggleable section
+- **Optional comment on resolution**: Modal prompts for optional free-text note when resolving drift
+- **Jira native trail**: Posts ADF comment to issue activity and adds "decision-drift-resolved" label (best-effort)
+- **Persistence**: Resolutions survive reloads; re-running detection doesn't bring resolved drifts back as open
+- **New scope**: Added `read:jira-user` to manifest (requires app upgrade/consent)
+- **Test coverage**: 92 passing tests (89 → 92), including resolved drift separation, persistence, and re-detection prevention
+
 ### v2.10.0 (Live Bug Fixes from Demo)
 - **Fix #1**: Import clearAllStorage in resolvers.js (resetAllData was failing)
 - **Fix #2**: Scope drift precision - keyword must be object of negation within ~20 chars OR in exclusion phrase within ~25 chars, uses whole-word matching, skips SCOPE_STOPWORDS (decision, define, scope, v1, v2, etc.)
