@@ -3,7 +3,8 @@
  */
 
 const Resolver = require('@forge/resolver').default;
-const { requestJira } = require('@forge/bridge');
+const api = require('@forge/api');
+const { route } = require('@forge/api');
 const { extractDecisions, adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const {
@@ -24,6 +25,25 @@ const {
 const { fetchIssueData } = require('./jira-api');
 
 const resolver = new Resolver();
+
+/**
+ * Call Jira REST as the current user (so comment/label show the real person),
+ * falling back to the app identity. Throws if both attempts fail.
+ */
+async function requestJiraWithFallback(path, options) {
+  let lastError;
+  for (const actor of ['asUser', 'asApp']) {
+    try {
+      const response = await api[actor]().requestJira(path, options);
+      if (response.ok) return response;
+      const body = await response.text();
+      lastError = new Error(`${actor} ${response.status}: ${body.slice(0, 200)}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
 
 /**
  * Build ADF comment for drift resolution
@@ -48,13 +68,20 @@ function buildDriftResolutionComment(drift, resolutionType, resolvedBy, notes) {
         },
         {
           type: 'text',
-          text: drift.explanation,
+          text: (drift && drift.explanation) || 'drift',
           marks: [{ type: 'em' }],
         },
         {
           type: 'text',
-          text: `" resolved as ${resolutionLabel} by ${resolvedBy}.`,
+          text: `" resolved as ${resolutionLabel}`,
         },
+        ...(resolvedBy
+          ? [
+              { type: 'text', text: ' by ' },
+              { type: 'mention', attrs: { id: resolvedBy } },
+            ]
+          : []),
+        { type: 'text', text: '.' },
       ],
     },
   ];
@@ -318,7 +345,7 @@ resolver.define('resolveDrift', async (req) => {
         notes
       );
       
-      await requestJira(`/rest/api/3/issue/${issueKey}/comment`, {
+      await requestJiraWithFallback(route`/rest/api/3/issue/${issueKey}/comment`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -333,7 +360,7 @@ resolver.define('resolveDrift', async (req) => {
     
     // Try to add label
     try {
-      await requestJira(`/rest/api/3/issue/${issueKey}`, {
+      await requestJiraWithFallback(route`/rest/api/3/issue/${issueKey}`, {
         method: 'PUT',
         headers: {
           'Accept': 'application/json',

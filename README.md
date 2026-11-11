@@ -220,6 +220,11 @@ Post-hackathon enhancements:
 
 ## 📋 Version History
 
+### v2.11.1 (Review fixes)
+- Backend Jira calls use `@forge/api` (`asUser()` with `asApp()` fallback, `route` tag) instead of frontend-only `@forge/bridge`; non-2xx responses now surface as warnings
+- Resolver shown by name via UI Kit `User` component; comment @mentions the resolver
+- Resolved section expanded by default; resolution shows date and time
+
 ### v2.11.0 (Resolved Drift Persistence & Jira Integration)
 - **Resolved drift stays visible**: Drift warnings stay in panel after resolution, marked with green "RESOLVED" badge
 - **Resolution details displayed**: Shows resolution type (intentional change/not a conflict), resolver accountId, and timestamp

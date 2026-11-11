@@ -30,7 +30,7 @@ const App = () => {
   const [resolvingDrift, setResolvingDrift] = useState(null);
   const [resolutionType, setResolutionType] = useState(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
-  const [showResolvedSection, setShowResolvedSection] = useState(false);
+  const [showResolvedSection, setShowResolvedSection] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
@@ -236,13 +236,19 @@ const App = () => {
                       <Text>
                         Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
                       </Text>
-                      <Text>
-                        <Em>
-                          Resolved as {drift.resolution.resolutionType.replace(/_/g, ' ')} 
-                          {' '}by {drift.resolution.resolvedBy}
-                          {' '}on {new Date(drift.resolution.resolvedAt).toLocaleDateString()}
-                        </Em>
-                      </Text>
+                      <Inline space="space.050" alignBlock="center" shouldWrap>
+                        <Text>
+                          <Em>Resolved as {String(drift.resolution.resolutionType || '').replace(/_/g, ' ')} by</Em>
+                        </Text>
+                        {drift.resolution.resolvedBy ? (
+                          <User accountId={drift.resolution.resolvedBy} />
+                        ) : (
+                          <Text><Em>unknown</Em></Text>
+                        )}
+                        <Text>
+                          <Em>on {new Date(drift.resolution.resolvedAt).toLocaleString()}</Em>
+                        </Text>
+                      </Inline>
                       {drift.resolution.notes && (
                         <Text>
                           <Strong>Note:</Strong> {drift.resolution.notes}
@@ -329,7 +335,7 @@ const App = () => {
         {/* Resolution Modal */}
         <ModalTransition>
           {resolvingDrift && (
-            <Modal>
+            <Modal onClose={handleCancelResolution}>
               <Stack space="space.300">
                 <Heading size="medium">Resolve Drift</Heading>
                 <Text>

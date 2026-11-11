@@ -2,13 +2,12 @@
  * Unit tests for resolver functions
  */
 
-// Mock Forge bridge module
-jest.mock('@forge/bridge', () => ({
-  requestJira: jest.fn().mockResolvedValue({ status: 201 }),
-}));
-
-// Mock Forge API modules
+// Mock Forge API modules (backend uses @forge/api, not @forge/bridge)
+const mockUserRequestJira = jest.fn();
+const mockAppRequestJira = jest.fn();
 jest.mock('@forge/api', () => ({
+  asUser: () => ({ requestJira: mockUserRequestJira }),
+  asApp: () => ({ requestJira: mockAppRequestJira }),
   route: (strings, ...values) => {
     // Simple template literal tag implementation
     let result = strings[0];
@@ -305,6 +304,51 @@ describe('Resolver Functions', () => {
           resolutionType: 'not_a_conflict',
         })
       );
+    });
+
+    it('posts comment and label as the user via @forge/api', async () => {
+      mockUserRequestJira.mockReset().mockResolvedValue({ ok: true, status: 201, text: async () => '' });
+      mockAppRequestJira.mockReset();
+      mockStorage.saveDriftResolution.mockResolvedValue({ id: 'r1' });
+
+      const result = await resolvers.resolveDrift({
+        payload: {
+          issueId: 'issue-123', issueKey: 'PAY-6', decisionId: 'd1',
+          drift: { explanation: 'x' }, resolutionType: 'not_a_conflict', notes: 'ok',
+        },
+        context: { accountId: 'user-123' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.warnings).toBeUndefined();
+      expect(mockUserRequestJira).toHaveBeenCalledTimes(2);
+      expect(mockUserRequestJira.mock.calls[0][0]).toBe('/rest/api/3/issue/PAY-6/comment');
+      const body = JSON.parse(mockUserRequestJira.mock.calls[0][1].body).body;
+      expect(body.content[0].content).toEqual(
+        expect.arrayContaining([{ type: 'mention', attrs: { id: 'user-123' } }])
+      );
+      expect(mockUserRequestJira.mock.calls[1][0]).toBe('/rest/api/3/issue/PAY-6');
+      expect(mockAppRequestJira).not.toHaveBeenCalled();
+    });
+
+    it('falls back to asApp and reports warnings when Jira calls fail', async () => {
+      mockUserRequestJira.mockReset().mockResolvedValue({ ok: false, status: 403, text: async () => 'no' });
+      mockAppRequestJira.mockReset()
+        .mockResolvedValueOnce({ ok: true, status: 201, text: async () => '' })
+        .mockResolvedValueOnce({ ok: false, status: 403, text: async () => 'no' });
+      mockStorage.saveDriftResolution.mockResolvedValue({ id: 'r1' });
+
+      const result = await resolvers.resolveDrift({
+        payload: {
+          issueId: 'issue-123', issueKey: 'PAY-6', decisionId: 'd1',
+          drift: { explanation: 'x' }, resolutionType: 'intentional_change', notes: '',
+        },
+        context: { accountId: 'user-123' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockAppRequestJira).toHaveBeenCalledTimes(2);
+      expect(result.warnings).toEqual(['Could not add label to issue']);
     });
 
     it('should handle errors gracefully', async () => {
