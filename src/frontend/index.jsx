@@ -17,6 +17,7 @@ import ForgeReconciler, {
   ModalTransition,
   TextArea,
   User,
+  xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
@@ -179,16 +180,16 @@ const App = () => {
   }
 
   // Card styles using design tokens
-  const cardStyle = {
+  const cardStyle = xcss({
     borderWidth: 'border.width',
     borderStyle: 'solid',
     borderColor: 'color.border',
     borderRadius: 'border.radius.200',
     padding: 'space.200',
     backgroundColor: 'elevation.surface'
-  };
+  });
 
-  const resolvedCardStyle = {
+  const resolvedCardStyle = xcss({
     borderWidth: 'border.width',
     borderStyle: 'solid',
     borderColor: 'color.border',
@@ -196,7 +197,7 @@ const App = () => {
     padding: 'space.200',
     backgroundColor: 'elevation.surface',
     opacity: '0.8'
-  };
+  });
 
   return (
     <Box padding="space.200">
