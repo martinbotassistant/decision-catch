@@ -570,6 +570,52 @@ describe('Drift Detector', () => {
         decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'], sourceIssueKey: 'PAY-1' },
         currentIssueKey: 'PAY-1',
       },
+      // Ambiguous word false-positive probes
+      {
+        name: 'Solid as adjective (not SolidJS)',
+        issueText: 'Build a solid onboarding flow.',
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: 'Spring as season (not Spring framework)',
+        issueText: 'Spring sale banner on the homepage.',
+        decision: { text: 'We decided to use Express', keywords: ['express'], topics: ['backend'] },
+      },
+      {
+        name: 'Spring as verb (not Spring framework)',
+        issueText: 'Ship the spring release notes.',
+        decision: { text: 'We decided to use Express', keywords: ['express'], topics: ['backend'] },
+      },
+      {
+        name: 'SSO as complementary (not alternative to OAuth)',
+        issueText: 'Add SSO login button next to OAuth.',
+        decision: { text: 'We decided to use OAuth', keywords: ['oauth'], topics: ['auth'] },
+      },
+      {
+        name: 'Oracle as general noun (not Oracle DB)',
+        issueText: 'Move the oracle of truth for pricing into one table.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Firebase Analytics (not Firebase Auth)',
+        issueText: 'Embed Firebase analytics SDK.',
+        decision: { text: 'We decided to use OAuth', keywords: ['oauth'], topics: ['auth'] },
+      },
+      {
+        name: 'Vercel as mention (not deployment)',
+        issueText: 'Write the release notes for the Vercel preview link.',
+        decision: { text: 'We decided to deploy on AWS', keywords: ['aws'], topics: ['cloud'] },
+      },
+      {
+        name: 'Azure as customer name (not cloud)',
+        issueText: 'Customer from Azure Bank complains about latency.',
+        decision: { text: 'We decided to deploy on AWS', keywords: ['aws'], topics: ['cloud'] },
+      },
+      {
+        name: 'Express as adjective (not Express.js)',
+        issueText: 'Add express checkout button.',
+        decision: { text: 'We decided to use Django', keywords: ['django'], topics: ['backend'] },
+      },
     ];
 
     describe('MUST detect drift (natural phrasings)', () => {

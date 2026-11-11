@@ -49,6 +49,8 @@ When someone creates work that contradicts an approved decision, the panel shows
 
 **Smart category matching**: Relational (PostgreSQL, MySQL) vs document (MongoDB, DynamoDB) databases flag each other, but cache (Redis) and queue (Kafka) are separate categories and won't false-positive. PostgreSQL + Redis cache is fine; PostgreSQL + MongoDB is drift.
 
+**Context-aware ambiguous word handling**: Common words that are also tech names (solid, spring, oracle, express, firebase, azure, vercel) only flag when used in tech context. "Build a **solid** onboarding flow" won't flag, but "Build a **solid** frontend component" will (frontend is a tech cue). Catches qualified forms like "Spring Boot", "Oracle DB", "Firebase Auth" automatically.
+
 Team can resolve drift as "intentional change" (with notes) or "not a conflict". Resolved items stay visible in a collapsed section with full audit trail.
 
 ### 4. 🤖 **Rovo Agent (Bonus)** — AI-powered decision lookup
@@ -244,6 +246,17 @@ All core logic is tested with fixtures (sample Jira comments). No Atlassian API 
 All limitations are architectural choices for a reliable MVP. Post-hackathon, we can add LLM fallback for edge cases.
 
 ## 📦 Version History
+
+### v3.0.2 (Critical: Ambiguous Tech Word False Positives)
+- **CRITICAL FIX**: Eliminated false positives from ambiguous tech names that are also common English words
+- **False positive examples fixed**: "Build a **solid** onboarding flow" (solid = adjective, not SolidJS), "**Spring** sale banner" (spring = season, not Spring Boot), "**oracle** of truth" (oracle = noun, not Oracle DB), "Customer from **Azure** Bank" (company name, not cloud), "**Firebase** analytics" (analytics, not Firebase Auth), "**express** checkout" (adjective, not Express.js)
+- **Context requirement for ambiguous techs**: solid, spring, oracle, express, flask, rails, ember, preact, firebase (in auth), vercel, netlify, azure, gcp, aws (all cloud), kafka now require tech context cues within ±4 words
+- **Qualified forms**: "Spring Boot", "Oracle DB", "Firebase Auth", "Express.js", "SolidJS", "Ruby on Rails" count without extra context
+- **Tech context cues**: database/db/store for DB; framework/frontend/ui/component for frontend; backend/api/server for backend; deploy/host/cloud/infra for cloud; auth/login/token for auth
+- **Word-boundary cue matching**: Prevents "ui" substring in "build" from triggering frontend context
+- **SSO removed from auth alternatives**: SSO is a capability (uses OAuth/SAML), not an alternative to them
+- **Test coverage**: 147 passing (66 drift tests: +9 ambiguous-word false-positive probes, all 12 natural-phrasing must-drift tests still pass)
+- **Unambiguous techs**: mongodb, postgresql, mysql, dynamodb, angular, vue, svelte, django, fastapi, nestjs, jwt, saml still count on plain mention
 
 ### v3.0.1 (Critical: Natural Language Drift Detection)
 - **CRITICAL FIX**: Drift detection now catches **natural language** phrasings like "Build the reporting service **on MongoDB**", "Use **MongoDB** for storage", "Store data **in DynamoDB**", plain tech mentions

@@ -33,8 +33,50 @@ const TECH_CATALOG = {
   backend: ['express', 'fastapi', 'django', 'spring', 'nestjs', 'flask', 'rails', 'laravel', 'aspnet'],
   // Cloud providers
   cloud: ['aws', 'azure', 'gcp', 'cloudflare', 'heroku', 'digitalocean', 'vercel', 'netlify'],
-  // Auth methods
-  auth: ['oauth', 'oauth2', 'jwt', 'sso', 'saml', 'auth0', 'okta', 'cognito', 'firebase'],
+  // Auth methods (note: sso removed from alternatives - it's a capability, not an auth method)
+  auth: ['oauth', 'oauth2', 'jwt', 'saml', 'auth0', 'okta', 'cognito'],
+};
+
+// Ambiguous tech names that need context cues (common English words or proper nouns)
+const AMBIGUOUS_TECHS = {
+  // DB
+  'oracle': ['database', 'db', 'store', 'storage', 'persist'],
+  'firestore': ['database', 'db', 'store', 'storage', 'persist'],
+  // Frontend
+  'solid': ['framework', 'frontend', 'ui', 'component', 'app', 'js', '.js'],
+  'ember': ['framework', 'frontend', 'ui', 'component', 'app', 'js', '.js'],
+  'preact': ['framework', 'frontend', 'ui', 'component', 'app', 'js', '.js'],
+  // Backend
+  'express': ['framework', 'backend', 'api', 'server', 'js', '.js'],
+  'spring': ['framework', 'backend', 'api', 'server', 'boot'],
+  'flask': ['framework', 'backend', 'api', 'server', 'python'],
+  'rails': ['framework', 'backend', 'api', 'server', 'ruby'],
+  // Cloud
+  'aws': ['deploy', 'host', 'hosting', 'infra', 'cloud', 'region', 'lambda', 'ec2', 's3'],
+  'azure': ['deploy', 'host', 'hosting', 'infra', 'cloud', 'region'],
+  'gcp': ['deploy', 'host', 'hosting', 'infra', 'cloud', 'region'],
+  'vercel': ['deploy', 'host', 'hosting', 'infra', 'cloud'],
+  'netlify': ['deploy', 'host', 'hosting', 'infra', 'cloud'],
+  'heroku': ['deploy', 'host', 'hosting', 'infra', 'cloud'],
+  'cloudflare': ['deploy', 'host', 'hosting', 'infra', 'cloud', 'cdn'],
+  'digitalocean': ['deploy', 'host', 'hosting', 'infra', 'cloud'],
+  // Queue
+  'kafka': ['queue', 'message', 'stream', 'event', 'broker'],
+};
+
+// Qualified forms that make ambiguous techs unambiguous
+const QUALIFIED_FORMS = {
+  'solid': ['solidjs', 'solid.js'],
+  'spring': ['spring boot', 'spring framework', 'springframework'],
+  'oracle': ['oracle db', 'oracle database'],
+  'express': ['express.js', 'expressjs'],
+  'ember': ['ember.js', 'emberjs'],
+  'rails': ['ruby on rails', 'rails framework'],
+  'flask': ['flask framework', 'flask app'],
+  'firestore': ['firebase firestore', 'cloud firestore'],
+  'preact': ['preact.js', 'preactjs'],
+  'vercel': ['vercel deploy', 'vercel.com'],
+  'netlify': ['netlify deploy', 'netlify.com'],
 };
 
 // Aliases map: tech -> canonical name
@@ -313,7 +355,51 @@ function shouldFlagAsAlternative(decidedCategory, mentionedCategory) {
 }
 
 /**
- * Find all technology mentions in text (not negated)
+ * Check if a tech mention has required context (for ambiguous techs)
+ * @param {string} text - Lowercase text
+ * @param {string} tech - Technology name
+ * @param {number} matchIndex - Index of the match in text
+ * @returns {boolean}
+ */
+function hasRequiredContext(text, tech, matchIndex) {
+  // Not ambiguous -> no context required
+  if (!AMBIGUOUS_TECHS[tech]) {
+    return true;
+  }
+  
+  // Check for qualified forms first (e.g., "Spring Boot", "Oracle DB")
+  const qualifiedForms = QUALIFIED_FORMS[tech] || [];
+  for (const form of qualifiedForms) {
+    if (text.includes(form)) {
+      return true;
+    }
+  }
+  
+  // Check for context cues within ±4 words (~30 chars)
+  const contextStart = Math.max(0, matchIndex - 30);
+  const contextEnd = Math.min(text.length, matchIndex + tech.length + 30);
+  const context = text.slice(contextStart, contextEnd);
+  
+  const requiredCues = AMBIGUOUS_TECHS[tech];
+  for (const cue of requiredCues) {
+    // Use word boundary for whole-word match (except for .js which has a dot)
+    if (cue === '.js') {
+      if (context.includes('.js')) {
+        return true;
+      }
+    } else {
+      const cueRegex = new RegExp(`\\b${escapeRegExp(cue)}\\b`, 'i');
+      if (cueRegex.test(context)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Find all technology mentions in text (not negated, with context for ambiguous techs)
  * @param {string} text - Lowercase text
  * @returns {Array} Array of mentioned technology names
  */
@@ -326,8 +412,12 @@ function findTechMentions(text) {
     const match = regex.exec(text);
     
     if (match) {
-      // Check if this mention is negated in its sentence
       const matchIndex = match.index;
+      
+      // Check if this mention has required context (for ambiguous techs)
+      if (!hasRequiredContext(text, tech, matchIndex)) {
+        continue;
+      }
       
       // Find the sentence containing this match (approx: look 100 chars before)
       const contextStart = Math.max(0, matchIndex - 100);
@@ -378,4 +468,5 @@ module.exports = {
   normalizeAlias,
   getTechCategory,
   shouldFlagAsAlternative,
+  hasRequiredContext,
 };
