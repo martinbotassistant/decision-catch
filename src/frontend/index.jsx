@@ -155,7 +155,7 @@ const App = () => {
       <Box padding="space.200">
         <Stack space="space.200" alignInline="center">
           <Spinner size="medium" />
-          <Text>Loading...</Text>
+          <Text>Loading Decision Catch data...</Text>
         </Stack>
       </Box>
     );
@@ -164,9 +164,12 @@ const App = () => {
   if (error) {
     return (
       <Box padding="space.200">
-        <SectionMessage appearance="error">
-          <Text><Strong>Error:</Strong> {error}</Text>
-        </SectionMessage>
+        <Stack space="space.200">
+          <SectionMessage appearance="error">
+            <Text><Strong>Error:</Strong> {error}</Text>
+          </SectionMessage>
+          <Button onClick={loadData}>Retry</Button>
+        </Stack>
       </Box>
     );
   }
@@ -189,6 +192,15 @@ const App = () => {
     backgroundColor: 'elevation.surface'
   });
 
+  const warningCardStyle = xcss({
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border.warning',
+    borderRadius: 'border.radius.200',
+    padding: 'space.200',
+    backgroundColor: 'elevation.surface'
+  });
+
   const resolvedCardStyle = xcss({
     borderWidth: 'border.width',
     borderStyle: 'solid',
@@ -199,17 +211,29 @@ const App = () => {
     opacity: '0.8'
   });
 
+  const emptyStateStyle = xcss({
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border',
+    borderRadius: 'border.radius.200',
+    padding: 'space.200',
+    backgroundColor: 'color.background.neutral.subtle'
+  });
+
   return (
     <Box padding="space.200">
       <Stack space="space.300">
 
         {/* Drift Warnings */}
         {data.drifts && data.drifts.length > 0 && (
-          <Stack space="space.200">
-            <Heading size="small">⚠️ Drift Detected</Heading>
+          <Stack space="space.300">
+            <Inline space="space.100" alignBlock="center">
+              <Heading size="small">Drift Detected</Heading>
+              <Lozenge appearance="removed">{data.drifts.length}</Lozenge>
+            </Inline>
             <Stack space="space.200">
               {data.drifts.map((drift, index) => (
-                <Box key={index} xcss={cardStyle}>
+                <Box key={index} xcss={warningCardStyle}>
                   <Stack space="space.150">
                     <Inline spread="space-between" alignBlock="center">
                       <Text>
@@ -287,8 +311,11 @@ const App = () => {
         )}
 
         {/* Candidate Decisions */}
-        <Stack space="space.200">
-          <Heading size="small">📝 Candidate Decisions ({data.candidates?.length || 0})</Heading>
+        <Stack space="space.300">
+          <Inline space="space.100" alignBlock="center">
+            <Heading size="small">Candidate Decisions</Heading>
+            <Lozenge appearance="default">{data.candidates?.length || 0}</Lozenge>
+          </Inline>
           {data.candidates && data.candidates.length > 0 ? (
             <Stack space="space.200">
               {data.candidates.map((candidate, index) => (
@@ -314,7 +341,7 @@ const App = () => {
                     )}
                     <ButtonGroup>
                       <Button appearance="primary"
-                        onClick={() => handleApprove(candidate)}>✓ Approve</Button>
+                        onClick={() => handleApprove(candidate)}>Approve</Button>
                       <Button onClick={() => handleDismiss(candidate)}>Dismiss</Button>
                     </ButtonGroup>
                   </Stack>
@@ -322,14 +349,21 @@ const App = () => {
               ))}
             </Stack>
           ) : (
-            <Text>No candidate decisions found in this issue.</Text>
+            <Box xcss={emptyStateStyle}>
+              <Text size="small">
+                <Em>No candidate decisions found in this issue.</Em>
+              </Text>
+            </Box>
           )}
         </Stack>
 
         {/* Approved Decisions */}
         {data.approvedDecisions && data.approvedDecisions.length > 0 && (
-          <Stack space="space.200">
-            <Heading size="small">✅ Decisions ({data.approvedDecisions.length})</Heading>
+          <Stack space="space.300">
+            <Inline space="space.100" alignBlock="center">
+              <Heading size="small">Approved Decisions</Heading>
+              <Lozenge appearance="success">{data.approvedDecisions.length}</Lozenge>
+            </Inline>
             <Stack space="space.200">
               {data.approvedDecisions.map((decision, index) => (
                 <Box key={index} xcss={cardStyle}>
@@ -362,47 +396,49 @@ const App = () => {
           </Stack>
         )}
 
-        {/* Project Stats */}
+        {/* Project Stats Footer */}
         {data.projectDecisionCount > 0 && (
-          <Text size="small">
-            <Em>{data.projectDecisionCount} decision(s) tracked in this project</Em>
-          </Text>
+          <Box paddingBlock="space.150">
+            <Text size="small">
+              <Em>{data.projectDecisionCount} decision(s) tracked in this project</Em>
+            </Text>
+          </Box>
         )}
-
-        {/* Resolution Modal */}
-        <ModalTransition>
-          {resolvingDrift && (
-            <Modal onClose={handleCancelResolution}>
-              <Stack space="space.300">
-                <Heading size="medium">Resolve Drift</Heading>
-                <Text>
-                  <Strong>Drift:</Strong> {resolvingDrift.explanation}
-                </Text>
-                <Text>
-                  <Strong>Resolution:</Strong> {resolutionType === 'intentional_change' ? 'Intentional change' : 'Not a conflict'}
-                </Text>
-                <TextArea
-                  label="Notes (optional)"
-                  placeholder="Add any notes about this resolution..."
-                  value={resolutionNotes}
-                  onChange={(e) => setResolutionNotes(e.target.value)}
-                />
-                <Inline space="space.200">
-                  <Button 
-                    appearance="primary" 
-                    onClick={handleConfirmResolution}
-                  >
-                    Confirm
-                  </Button>
-                  <Button onClick={handleCancelResolution}>
-                    Cancel
-                  </Button>
-                </Inline>
-              </Stack>
-            </Modal>
-          )}
-        </ModalTransition>
       </Stack>
+
+      {/* Resolution Modal */}
+      <ModalTransition>
+        {resolvingDrift && (
+          <Modal onClose={handleCancelResolution}>
+            <Stack space="space.300">
+              <Heading size="medium">Resolve Drift</Heading>
+              <Text>
+                <Strong>Drift:</Strong> {resolvingDrift.explanation}
+              </Text>
+              <Text>
+                <Strong>Resolution:</Strong> {resolutionType === 'intentional_change' ? 'Intentional change' : 'Not a conflict'}
+              </Text>
+              <TextArea
+                label="Notes (optional)"
+                placeholder="Add any notes about this resolution..."
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+              />
+              <Inline space="space.200">
+                <Button 
+                  appearance="primary" 
+                  onClick={handleConfirmResolution}
+                >
+                  Confirm
+                </Button>
+                <Button onClick={handleCancelResolution}>
+                  Cancel
+                </Button>
+              </Inline>
+            </Stack>
+          </Modal>
+        )}
+      </ModalTransition>
     </Box>
   );
 };

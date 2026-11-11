@@ -5,25 +5,79 @@
 const { adfToText } = require('./decision-extractor');
 const { detectDrift } = require('./drift-detector');
 const { getAllDecisions, getDecisionsForIssue } = require('./storage');
-const { fetchIssueData } = require('./jira-api');
+const { fetchIssueData, fetchProjectData } = require('./jira-api');
+
+/**
+ * Extract inputs from Rovo payload with context fallback
+ * @param {Object} payload - Rovo action payload
+ * @returns {Object} Extracted inputs
+ */
+function getInputs(payload) {
+  // Rovo actions receive inputs at top level: payload.issueKey, payload.projectId
+  // Also check nested paths for compatibility and fallback to context
+  const issueKey = payload.issueKey 
+    || payload.inputs?.issueKey 
+    || payload.payload?.inputs?.issueKey
+    || payload.context?.jira?.issueKey;
+  
+  const projectId = payload.projectId 
+    || payload.inputs?.projectId 
+    || payload.payload?.inputs?.projectId;
+  
+  const projectKey = payload.projectKey
+    || payload.inputs?.projectKey
+    || payload.payload?.inputs?.projectKey
+    || payload.context?.jira?.projectKey;
+  
+  const decisionText = payload.decisionText 
+    || payload.inputs?.decisionText 
+    || payload.payload?.inputs?.decisionText;
+
+  return { issueKey, projectId, projectKey, decisionText };
+}
+
+/**
+ * Resolve project key to numeric ID
+ * @param {string} projectKeyOrId - Project key (e.g. 'PAY') or numeric ID
+ * @returns {Promise<string>} Numeric project ID
+ */
+async function resolveProjectId(projectKeyOrId) {
+  // If already numeric, return as-is
+  if (/^\d+$/.test(projectKeyOrId)) {
+    return projectKeyOrId;
+  }
+  
+  // Fetch project to get ID
+  const projectData = await fetchProjectData(projectKeyOrId);
+  return projectData.id;
+}
 
 /**
  * List decisions for an issue or project
- * @param {Object} req - Rovo action request
+ * @param {Object} payload - Rovo action payload
  * @returns {Promise<Object>}
  */
-async function listDecisions(req) {
+async function listDecisions(payload) {
   try {
-    const { issueKey, projectId } = req.payload?.inputs || {};
+    const { issueKey, projectId, projectKey } = getInputs(payload);
 
     if (issueKey) {
-      // Fetch issue to get its ID
       const issueData = await fetchIssueData(issueKey);
       const decisions = await getDecisionsForIssue(issueData.id);
       
+      if (decisions.length === 0) {
+        return {
+          success: true,
+          message: `No decisions found for issue ${issueKey}`,
+          decisions: [],
+        };
+      }
+
+      const summary = decisions.map(d => `• ${d.text.slice(0, 80)}${d.text.length > 80 ? '...' : ''} (from ${d.sourceIssueKey})`).join('\n');
+      
       return {
         success: true,
-        message: `Found ${decisions.length} decision(s) for issue ${issueKey}`,
+        message: `Found ${decisions.length} decision(s) for issue ${issueKey}:\n${summary}`,
         decisions: decisions.map(d => ({
           text: d.text,
           topics: d.topics,
@@ -34,12 +88,25 @@ async function listDecisions(req) {
       };
     }
 
-    if (projectId) {
-      const decisions = await getAllDecisions(projectId);
+    const resolvedProjectId = projectId || (projectKey ? await resolveProjectId(projectKey) : null);
+    
+    if (resolvedProjectId) {
+      const decisions = await getAllDecisions(resolvedProjectId);
+      
+      if (decisions.length === 0) {
+        return {
+          success: true,
+          message: `No decisions tracked yet for project ${projectKey || projectId}`,
+          decisions: [],
+        };
+      }
+
+      const summary = decisions.slice(0, 5).map(d => `• ${d.text.slice(0, 80)}${d.text.length > 80 ? '...' : ''}`).join('\n');
+      const more = decisions.length > 5 ? `\n...and ${decisions.length - 5} more` : '';
       
       return {
         success: true,
-        message: `Found ${decisions.length} decision(s) for project ${projectId}`,
+        message: `Found ${decisions.length} decision(s) for project ${projectKey || projectId}:\n${summary}${more}`,
         decisions: decisions.map(d => ({
           text: d.text,
           topics: d.topics,
@@ -52,56 +119,60 @@ async function listDecisions(req) {
 
     return {
       success: false,
-      message: 'Please provide either issueKey or projectId',
+      message: 'Please provide either an issue key (e.g. PAY-6) or project key/ID (e.g. PAY)',
     };
   } catch (error) {
     console.error('Error in listDecisions:', error);
     return {
       success: false,
-      message: `Error: ${error.message}`,
+      message: `Failed to list decisions: ${error.message}`,
     };
   }
 }
 
 /**
  * Check if an issue has drift from approved decisions
- * @param {Object} req - Rovo action request
+ * @param {Object} payload - Rovo action payload
  * @returns {Promise<Object>}
  */
-async function checkDrift(req) {
+async function checkDrift(payload) {
   try {
-    const { issueKey } = req.payload?.inputs || {};
+    const { issueKey } = getInputs(payload);
 
     if (!issueKey) {
       return {
         success: false,
-        message: 'Please provide an issueKey',
+        message: 'Please provide an issue key (e.g. PAY-6)',
       };
     }
 
-    // Fetch issue data
     const issueData = await fetchIssueData(issueKey);
-    
-    // Get project decisions
     const projectDecisions = await getAllDecisions(issueData.fields.project.id);
 
     if (projectDecisions.length === 0) {
       return {
         success: true,
-        message: `No decisions recorded for this project yet`,
+        message: `No decisions tracked yet for project ${issueData.fields.project.key}. Approve some decisions first to enable drift detection.`,
         drifts: [],
       };
     }
 
-    // Check for drift
     const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
     const drifts = detectDrift(issueText, projectDecisions, { currentIssueKey: issueData.key });
 
+    if (drifts.length === 0) {
+      return {
+        success: true,
+        message: `✓ No drift detected in ${issueKey}. Issue aligns with ${projectDecisions.length} approved decision(s).`,
+        drifts: [],
+      };
+    }
+
+    const summary = drifts.map(d => `• ${d.explanation} (original: ${d.decision.sourceIssueKey})`).join('\n');
+    
     return {
       success: true,
-      message: drifts.length > 0 
-        ? `Found ${drifts.length} potential drift(s) in ${issueKey}`
-        : `No drift detected in ${issueKey}`,
+      message: `⚠️ Found ${drifts.length} potential drift(s) in ${issueKey}:\n${summary}`,
       drifts: drifts.map(d => ({
         type: d.type,
         explanation: d.explanation,
@@ -114,78 +185,89 @@ async function checkDrift(req) {
     console.error('Error in checkDrift:', error);
     return {
       success: false,
-      message: `Error: ${error.message}`,
+      message: `Failed to check drift: ${error.message}`,
     };
   }
 }
 
 /**
  * Explain what has changed since a decision was made
- * @param {Object} req - Rovo action request
+ * @param {Object} payload - Rovo action payload
  * @returns {Promise<Object>}
  */
-async function explainChanges(req) {
+async function explainChanges(payload) {
   try {
-    const { issueKey, decisionText } = req.payload?.inputs || {};
+    const { issueKey, decisionText } = getInputs(payload);
 
     if (!issueKey) {
       return {
         success: false,
-        message: 'Please provide an issueKey',
+        message: 'Please provide an issue key (e.g. PAY-6)',
       };
     }
 
-    // Fetch issue data
     const issueData = await fetchIssueData(issueKey);
-    
-    // Get decisions for this issue's project
     const projectDecisions = await getAllDecisions(issueData.fields.project.id);
 
-    // Find the specific decision if decisionText provided
+    if (projectDecisions.length === 0) {
+      return {
+        success: false,
+        message: `No decisions tracked yet for project ${issueData.fields.project.key}. Approve some decisions first.`,
+      };
+    }
+
     let targetDecision = null;
     if (decisionText) {
       targetDecision = projectDecisions.find(d => 
         d.text.toLowerCase().includes(decisionText.toLowerCase())
       );
+      
+      if (!targetDecision) {
+        return {
+          success: false,
+          message: `No decision matching "${decisionText}" found. Try listing decisions for this project first.`,
+        };
+      }
+    } else {
+      targetDecision = projectDecisions[0];
     }
 
-    if (!targetDecision && projectDecisions.length > 0) {
-      targetDecision = projectDecisions[0]; // Use most recent
-    }
+    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
+    const drifts = detectDrift(issueText, [targetDecision], { currentIssueKey: issueData.key });
+    const hasChanges = drifts.length > 0;
 
-    if (!targetDecision) {
+    if (hasChanges) {
+      const changes = drifts.map(d => d.explanation).join('; ');
       return {
-        success: false,
-        message: 'No matching decision found',
+        success: true,
+        message: `Issue ${issueKey} deviates from decision in ${targetDecision.sourceIssueKey}: ${changes}`,
+        decision: {
+          text: targetDecision.text,
+          decidedAt: new Date(targetDecision.timestamp).toISOString(),
+          sourceIssue: targetDecision.sourceIssueKey,
+        },
+        changes: drifts.map(d => ({
+          type: d.type,
+          explanation: d.explanation,
+        })),
       };
     }
 
-    // Compare issue with decision
-    const issueText = `${issueData.fields.summary} ${adfToText(issueData.fields.description)}`;
-    const drifts = detectDrift(issueText, [targetDecision]);
-
-    const hasChanges = drifts.length > 0;
-
     return {
       success: true,
-      message: hasChanges 
-        ? `Issue ${issueKey} deviates from the decision made in ${targetDecision.sourceIssueKey}`
-        : `Issue ${issueKey} aligns with the decision made in ${targetDecision.sourceIssueKey}`,
+      message: `✓ Issue ${issueKey} aligns with decision from ${targetDecision.sourceIssueKey}: "${targetDecision.text.slice(0, 100)}${targetDecision.text.length > 100 ? '...' : ''}"`,
       decision: {
         text: targetDecision.text,
         decidedAt: new Date(targetDecision.timestamp).toISOString(),
         sourceIssue: targetDecision.sourceIssueKey,
       },
-      changes: hasChanges ? drifts.map(d => ({
-        type: d.type,
-        explanation: d.explanation,
-      })) : [],
+      changes: [],
     };
   } catch (error) {
     console.error('Error in explainChanges:', error);
     return {
       success: false,
-      message: `Error: ${error.message}`,
+      message: `Failed to explain changes: ${error.message}`,
     };
   }
 }

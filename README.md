@@ -1,224 +1,253 @@
 # Decision Catch
 
-**Decision Catch** is an Atlassian Forge app for Codegeist 2026 that automatically detects decisions made in Jira comments and warns when new work items contradict them.
+> Automatically catch decisions made in Jira comments and prevent contradicting work from slipping through
 
-## 🎯 Problem
+**Decision Catch** is an Atlassian Forge app for Codegeist 2026 (Category: Apps for Software Teams) that automatically detects technical decisions buried in issue comments and alerts teams when new work contradicts them.
 
-Teams make important decisions in Jira comments like:
+## 🎯 The Problem
+
+Software teams make critical technical decisions in Jira comments:
 - "We decided to use PostgreSQL for the database"
-- "Agreed: no SSO implementation in v1"
+- "Agreed: no SSO implementation in v1.0"
 - "Going with React for the frontend"
 
-These decisions get lost. Later, someone creates a task that quietly contradicts them. Nobody notices until it's too late.
+**These decisions get lost.** Weeks later, someone creates a task that quietly contradicts them. Nobody notices until it's deployed.
 
-Atlassian natively only records decisions manually (Confluence DACI template). Nothing automatically detects drift.
+Atlassian's native decision tracking requires manual entry (Confluence DACI templates) and doesn't check for conflicts. **Decision Catch automates both discovery and conflict detection.**
 
-**Decision Catch solves this.**
+## ✨ What It Does
 
-## ✨ Features
+Decision Catch gives your team three superpowers:
 
-### 1. 🔍 Catch
-Scans Jira work items (descriptions and comments) for candidate decisions using deterministic heuristics:
-- Affirmative decisions: "we decided to use", "going with", "chosen"
-- Negative decisions: "won't use", "out of scope", "not doing"
-- Technology choices: "using X for Y", "selected Z"
+### 1. 🔍 **Automatic Detection** — Finds decisions in your existing issues
 
-**No paid APIs or LLMs required** - pure pattern matching that's explainable and debuggable.
+Scans issue descriptions and comments for decision patterns:
+- Affirmative: "we decided to use", "going with", "chosen"
+- Negative: "won't use", "out of scope for v1"
+- Technology choices: "using PostgreSQL", "selected React"
 
-### 2. ✅ Approve
-A Jira issue panel (UI Kit) that shows:
-- **Candidate decisions** found in the issue
-- Confidence scores (High/Medium/Low)
-- Topic categorization (database, security, architecture, etc.)
-- Approve/Dismiss actions
-- Edit decision text before approving
+Shows them in a Jira issue panel with confidence scores (High/Med/Low) and topic tags (database, security, architecture).
 
-Approved decisions are stored with:
-- Source issue and comment links
-- Author and timestamp
-- Keywords and topics for matching
+**No LLMs, no external APIs** — pure deterministic pattern matching that's fast, explainable, and free.
 
-### 3. ⚠️ Drift Detection
-When an issue is created or updated, Decision Catch:
-- Compares it against all approved decisions in the project
-- Detects contradictions using keyword overlap and negation patterns
-- Shows drift warnings in the panel with:
-  - Type: negation, alternative technology, or scope violation
-  - Explanation: "Issue uses MongoDB instead of decided PostgreSQL"
-  - Link to original decision
-- Lets users mark drift as "intentional change" or "not a conflict"
+### 2. ✅ **Team Review** — Approve what matters
 
-### 4. 🤖 Rovo Agent (Bonus)
-A Rovo agent "Decision Catch" with actions:
-- **List decisions** for an issue or project
-- **Check drift** for a specific issue
-- **Explain changes** since a decision was made
+One-click approval saves decisions with full context:
+- Source issue and timestamp
+- Author and decision text (editable)
+- Extracted keywords and topics
+- Dismiss false positives to keep signal clean
 
-The panel works fully without Rovo - the agent is an AI-powered bonus interface.
+### 3. ⚠️ **Drift Warnings** — Prevent contradictions before they ship
 
-### 5. 🔗 Teamwork Graph (Optional)
-Can use Teamwork Graph Preview API to find related items. Behind a feature flag, degrades gracefully if unavailable.
+When someone creates work that contradicts an approved decision, the panel shows:
+- **Type**: Alternative technology, scope violation, or negation
+- **Explanation**: "Issue uses MongoDB instead of decided PostgreSQL"
+- **Original decision**: Link to source issue
+
+Team can resolve drift as "intentional change" (with notes) or "not a conflict". Resolved items stay visible in a collapsed section with full audit trail.
+
+### 4. 🤖 **Rovo Agent (Bonus)** — AI-powered decision lookup
+
+Three Rovo actions for natural language queries:
+- **List decisions** for an issue or project (e.g. "show me decisions for PAY project")
+- **Check drift** in a specific issue (e.g. "does PAY-6 contradict any decisions?")
+- **Explain changes** since a decision (e.g. "how does this differ from our PostgreSQL decision?")
+
+Fully optional — panel works standalone.
+
+## 📸 Screenshots
+
+*(Demo screenshots showing the panel, drift warnings, and Rovo agent in action)*
+
+1. **Candidate decisions panel** with confidence scores and topics
+2. **Drift warning** showing MongoDB vs PostgreSQL conflict
+3. **Resolved drift section** with audit trail
+4. **Admin settings** page with data management
+5. **Rovo agent** responding to "check drift in PAY-6"
 
 ## 🏗️ Architecture
 
+### Tech Stack
+- **Runtime**: Node.js 24 (Atlassian Forge)
+- **Storage**: Forge Storage API (no external database required)
+- **UI**: Forge UI Kit (@forge/react) with React 18
+- **Testing**: Jest with 114 unit tests
+- **Zero external dependencies** for core logic
+
+### Code Structure
 ```
 src/
-├── decision-extractor.js   # Core heuristics for finding decisions
-├── drift-detector.js       # Contradiction detection logic
-├── storage.js              # Forge storage API wrapper
-├── index.js                # Main Forge resolver (panel API)
-├── triggers.js             # Issue created/updated event handlers
-├── rovo.js                 # Rovo agent actions
-└── jira-api.js             # Jira API helpers
+├── decision-extractor.js    # Core: finds decisions via patterns
+├── drift-detector.js        # Core: detects contradictions
+├── storage.js               # Forge Storage API wrapper
+├── resolvers.js             # Backend: panel data & actions
+├── rovo.js                  # Rovo agent actions
+├── jira-api.js              # Jira REST API helpers
+└── frontend/
+    ├── index.jsx            # Issue panel UI
+    └── admin.jsx            # Admin settings page
 
 tests/
-├── decision-extractor.test.js  # Unit tests for extraction
-└── drift-detector.test.js      # Unit tests for drift detection
+├── decision-extractor.test.js  # 44 tests
+├── drift-detector.test.js      # 30 tests
+├── resolvers.test.js           # 20 tests
+└── rovo.test.js                # 20 tests
 
-static/decision-catch/build/
-└── index.html              # UI panel (HTML/CSS/JS)
-
-manifest.yml                # Forge app manifest
+manifest.yml                 # Forge app definition
 ```
 
-### Technology Stack
-- **Runtime**: Node.js 24.x (Forge standard)
-- **Storage**: Forge Storage API (no external database)
-- **UI**: Forge UI Kit (@forge/react v10) with React components
-  - Uses `ButtonGroup` (not ButtonSet), `Lozenge` (not Badge for text labels)
-  - Button labels as children, not `text` prop
-  - Proper UI Kit patterns for Jira panel rendering
-- **Testing**: Jest
-- **No external dependencies** for core logic (decision extraction and drift detection)
+### How It Works
 
-## 🚀 Setup & Deployment
+1. **Detection**: Scans issue text with regex patterns for decision keywords
+2. **Scoring**: Confidence based on pattern strength + team language markers
+3. **Storage**: Approved decisions saved to Forge Storage (scoped per installation)
+4. **Drift Check**: On panel load, compares issue text against project decisions
+5. **Matching**: Keyword overlap + negation detection + category awareness (e.g., database techs)
+
+## 🚀 Installation (For Judges)
 
 ### Prerequisites
-- Node.js 18+ and npm
-- [Forge CLI](https://developer.atlassian.com/platform/forge/getting-started/) installed: `npm install -g @forge/cli`
-- Atlassian account with Jira site (Cloud)
+- Atlassian account with Jira Cloud site
+- [Forge CLI](https://developer.atlassian.com/platform/forge/getting-started/) installed:
+  ```bash
+  npm install -g @forge/cli
+  ```
+- Node.js 18+ (for running tests locally)
 
-### Installation
+### Quick Start
 
-1. **Clone the repository**
-   ```bash
-   git clone <repo-url>
-   cd decision-catch
-   ```
+```bash
+# 1. Clone and test
+git clone <repo-url>
+cd decision-catch
+npm install
+npm test    # All 114 tests should pass
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+# 2. Deploy to Forge
+forge login             # Authenticate with Atlassian
+forge register          # Get an app ID (first time only)
+forge deploy            # Upload to Forge infrastructure
 
-3. **Run tests**
-   ```bash
-   npm test
-   ```
-   All unit tests should pass. Tests run entirely offline with no Atlassian credentials needed.
+# 3. Install to your Jira site
+forge install           # Choose your site, grant permissions
+```
 
-4. **Login to Forge**
-   ```bash
-   forge login
-   ```
-   This will open a browser to authenticate with your Atlassian account.
+### Required Permissions
 
-5. **Register the app** (first time only)
-   ```bash
-   forge register
-   ```
-   This creates a new app ID in your Atlassian developer console.
+Decision Catch requests these Jira scopes (all justified):
 
-6. **Deploy the app**
-   ```bash
-   forge deploy
-   ```
-   This packages and uploads the app code to Atlassian's infrastructure.
+| Scope | Why Needed | Used Where |
+|-------|------------|------------|
+| `read:jira-work` | Read issue descriptions, comments, project data | Panel data loading, drift detection |
+| `write:jira-work` | Post resolution comments, add labels | Optional: drift resolution trail |
+| `read:jira-user` | Display resolver name with avatar | Resolution audit in panel |
+| `storage:app` | Save approved decisions, resolutions, dismissals | All persistence |
 
-7. **Install to your Jira site**
-   ```bash
-   forge install
-   ```
-   Select your Jira site and follow the prompts. This requires admin permissions.
+**Privacy**: No data leaves Atlassian infrastructure. All storage is Forge Storage API (scoped per installation).
 
-8. **Grant permissions**
-   - Navigate to your Jira site
-   - Go to Settings → Apps → Manage apps
-   - Find "Decision Catch" and grant the required permissions:
-     - `read:jira-work` - to read issue data
-     - `write:jira-work` - to create comments/custom fields (optional)
+## 🎬 Demo Walkthrough
 
-### Verification
+### 1. Setup (30 seconds)
+Create a Jira project "PAY" (Payment System) with these sample issues:
 
-1. Open any Jira issue
-2. Look for the "Decision Catch" panel on the right side
-3. Add a comment like: "We decided to use PostgreSQL for the database"
-4. Refresh the panel - you should see it as a candidate decision
-5. Click "Approve" to save it
-6. Create a new issue with "using MongoDB" in the description
-7. Open that issue's Decision Catch panel - you should see a drift warning
+**PAY-1**: Initial decisions (in comments)
+- "We decided to use PostgreSQL for the database"
+- "Going with React and Next.js for the frontend"
+- "Agreed: no SSO implementation in v1.0, out of scope"
 
-## 📊 Demo Setup
+**PAY-2**, **PAY-3**, **PAY-4**: More decisions (see `docs/demo-data.md` for full script)
 
-See `docs/demo-data.md` for a script to seed demo data in a test Jira project.
+### 2. Approve Decisions (30 seconds)
+- Open **PAY-1**
+- Decision Catch panel shows 3 candidates with High confidence
+- Click **Approve** on each → saved with timestamp and source link
 
-## 🎬 Video Script
+### 3. See Drift Detection (1 minute)
+- Create **PAY-5**: "Implement SSO via OAuth"
+  - Panel warns: "Issue violates scope decision: agreed no SSO in v1"
+  - Shows original decision from PAY-1
+- Create **PAY-6**: "Setup MongoDB database"
+  - Panel warns: "Issue uses mongodb instead of decided postgresql"
+  - Shows alternative technology conflict
 
-See `docs/video-script.md` for the complete demo walkthrough (under 4:30 minutes).
+### 4. Resolve Drift (30 seconds)
+- In PAY-5, click "Mark as intentional change"
+- Add note: "Requirements changed, SSO now priority"
+- Drift moves to "Resolved" section with full audit trail
+
+### 5. Try Rovo Agent (30 seconds) *[Optional, requires Rovo enabled]*
+- Ask: "Check drift in PAY-6"
+- Agent responds: "⚠️ Found 1 potential drift: uses mongodb instead of postgresql"
+
+**Total demo time**: Under 4 minutes
+
+Full demo data script: [`docs/demo-data.md`](docs/demo-data.md)
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm test -- --coverage
-
-# Watch mode for development
-npm run test:watch
+npm test    # Run all 114 unit tests (passes offline, no credentials needed)
 ```
 
-### Test Coverage
-- `decision-extractor.js`: Pattern matching, confidence scoring, topic extraction
-- `drift-detector.js`: Contradiction detection, keyword overlap, category matching
+### Test Suite Breakdown
+- **decision-extractor.test.js** (44 tests): Pattern matching, confidence scoring, topic extraction, ADF parsing
+- **drift-detector.test.js** (30 tests): Contradiction detection, keyword overlap, category matching, deduplication
+- **resolvers.test.js** (20 tests): Panel API, approval flow, drift resolution, storage
+- **rovo.test.js** (20 tests): Rovo actions with different input shapes, context fallback, error handling
 
-Both modules are tested with fixtures representing real Jira comments. No mocking of Atlassian APIs needed for core logic.
+All core logic is tested with fixtures (sample Jira comments). No Atlassian API mocking required.
 
-## 📋 Codegeist 2026 Requirements
+## 📋 Codegeist 2026 Submission
 
-### Category: Apps for Software Teams ✅
-Decision Catch helps software teams track technical decisions and prevent drift.
+**Category**: Apps for Software Teams  
+**Bonus Target**: Best Rovo Agent (3 actions: list, check, explain)
 
-### Bonus Targets
-- ✅ **Best Rovo agent**: Rovo agent with 3 actions (list, check, explain)
-- 🎯 **Best use of Teamwork Graph**: Optional integration behind feature flag
+**What makes this special**:
+- ✅ Solves a real pain: decisions lost in comments causing drift
+- ✅ Zero external dependencies or APIs — purely Forge
+- ✅ 114 unit tests covering all core logic
+- ✅ Production-ready: handles errors, validates inputs, never throws
+- ✅ Rovo agent with contextual input reading (works from panel or chat)
+- ✅ Privacy-first: all data stays in Forge Storage
 
-### Technical Requirements ✅
-1. **Forge app**: `manifest.yml` with Forge modules ✅
-2. **Jira integration**: Issue panel, triggers, storage ✅
-3. **Original work**: Built from scratch for this hackathon ✅
-4. **Deployable**: Complete setup instructions included ✅
+**Built from scratch for Codegeist 2026** — no existing codebase reused.
 
-## 🔒 Security & Privacy
+## 🔒 Privacy & Data
 
-- **No external API calls** in MVP (all heuristic-based)
-- **No credentials required** for core functionality
-- Data stored using Forge Storage API (isolated per installation)
-- Minimal Jira scopes: read-only for core features
-- No PII collected beyond standard Jira author names
+**What we store** (all in Forge Storage, scoped per installation):
+- Approved decisions: text, source issue, approver, timestamp
+- Drift resolutions: resolution type, resolver, notes, timestamp
+- Dismissed candidates: issue ID + candidate text (prevents re-showing)
 
-## 🛣️ Roadmap
+**What we DON'T store**:
+- User passwords or tokens
+- Issue content (re-fetched on demand via Jira API)
+- Any data outside Atlassian infrastructure
 
-Post-hackathon enhancements:
-- **LLM-based extraction**: Plug in OpenAI/Anthropic for higher accuracy (interface already designed)
-- **Decision templates**: Pre-defined decision types (ADRs, RFCs)
-- **Slack notifications**: Alert when drift is detected
-- **Analytics dashboard**: Decision velocity, drift rate over time
-- **Confluence integration**: Link to ADR documents
-- **GitHub integration**: Sync decisions with PR descriptions
+**Data access**: Only Jira site admins can install. Only users with issue access can see decisions from those issues.
 
-## 📋 Version History
+## 🚧 Known Limitations
+
+1. **English-focused**: Non-Latin scripts filtered (Hebrew, Arabic, etc.)
+2. **Pattern-based**: May miss subtle/creative phrasing (by design for MVP)
+3. **Forward-only**: Doesn't analyze historical issues (manual backfill possible)
+4. **No ML**: Category detection is rule-based, not learned
+
+All limitations are architectural choices for a reliable MVP. Post-hackathon, we can add LLM fallback for edge cases.
+
+## 📦 Version History
+
+### v3.0.0 (Codegeist Submission Candidate)
+- **Rovo agent bug fix**: Fixed input reading to handle Forge's top-level payload structure (payload.issueKey, not payload.payload.inputs.issueKey)
+- **Context fallback**: Rovo actions now use context.jira.issueKey when no explicit input provided
+- **Project key support**: Accept 'PAY' as well as numeric project ID, auto-resolve via Jira API
+- **Better messages**: Concise, human-readable summaries in Rovo responses
+- **20 Rovo unit tests**: Cover all input shapes, error handling, empty states
+- **Panel polish**: Professional look with no emoji in headings, warning border for active drift, muted empty states
+- **Admin page polish**: Clear descriptions, card-based layout with design tokens
+- **Submission-ready docs**: README rewritten for judges, demo data guide, clean repo
+- **Test count**: 114 passing (94 resolvers/extractors/detectors + 20 Rovo)
 
 ### v2.12.0 (Visual Redesign)
 - **Modern card-based UI**: Clean borders, rounded corners, and subtle backgrounds using Atlassian design tokens
@@ -268,56 +297,18 @@ Post-hackathon enhancements:
 - **UX improvements**: Spinner while loading, optimistic state updates on Approve/Dismiss, "Approved by X on date" metadata, cleaner header (removed duplicate title)
 - **Test coverage**: 79 passing tests (up from 67), including new tests for dismissals, precision filters, duplicate prevention, and drift deduplication
 
-### v2.7.0 (Live Deploy Success)
-- Native UI Kit issue panel with dynamic resolver bridge
-- Drift detection runs on every panel load
-- ADF text parsing for Jira v3 descriptions and comments
-- Fixed all deployment blockers
-
-## 🐛 Known Limitations
-
-1. **Heuristic-based**: May miss subtle decisions or have false positives (by design for MVP)
-2. **English only**: Non-Latin scripts (Hebrew, Arabic, etc.) are filtered out
-3. **No historical analysis**: Only checks issues going forward (can add backfill script)
-4. **Simple keyword matching**: Category detection is rule-based, not ML
-5. **Offline deployment**: Cannot verify `forge deploy` without Atlassian credentials
-
-## 📝 What's Verified vs. Needs Live Deploy
-
-### ✅ Verified (offline)
-- All unit tests pass (`npm test`)
-- Code structure follows Forge conventions
-- Manifest syntax is valid
-- No secrets in repo
-- Documentation complete
-
-### 🔄 Needs verification on live Jira site
-- Panel renders correctly in Jira UI
-- Storage API persists decisions
-- Triggers fire on issue events
-- Rovo agent responds to queries
-- Permissions work correctly
-
-The app is **ready to deploy** with `forge deploy` and `forge install` on a real Jira site.
-
-## 👥 Team
-
-Built for Codegeist 2026 by [Your Name/Team].
+*(Earlier versions trimmed for brevity — see git history for full changelog)*
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License
 
-## 🤝 Contributing
+## 🙏 Built For
 
-This is a hackathon submission. Post-hackathon, contributions welcome via issues and PRs.
-
-## 🙏 Acknowledgments
-
-- Atlassian Forge team for the platform
-- Codegeist 2026 for the opportunity
-- Software teams everywhere who lose decisions in comment threads
+**Codegeist 2026** — Atlassian's annual app hackathon  
+**Category**: Apps for Software Teams  
+**Demo project**: PAY (Payment System) — fictional project, no real company data used
 
 ---
 
-**Made with ☕ for Codegeist 2026**
+**Decision Catch** — Never lose another decision in a comment thread.

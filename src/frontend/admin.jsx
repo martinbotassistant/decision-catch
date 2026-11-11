@@ -10,10 +10,29 @@ import ForgeReconciler, {
   Modal,
   ModalTransition,
   Inline,
+  xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
 const AdminApp = () => {
+  // Card styles using design tokens
+  const cardStyle = xcss({
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border',
+    borderRadius: 'border.radius.200',
+    padding: 'space.300',
+    backgroundColor: 'elevation.surface'
+  });
+
+  const dangerCardStyle = xcss({
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border.danger',
+    borderRadius: 'border.radius.200',
+    padding: 'space.300',
+    backgroundColor: 'elevation.surface'
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [result, setResult] = useState(null);
@@ -52,10 +71,10 @@ const AdminApp = () => {
   return (
     <Box padding="space.400">
       <Stack space="space.400">
-        <Box>
+        <Stack space="space.200">
           <Heading size="large">Decision Catch Settings</Heading>
-          <Text>Manage your Decision Catch app data and settings.</Text>
-        </Box>
+          <Text>Manage your Decision Catch app data across all projects.</Text>
+        </Stack>
 
         {error && (
           <SectionMessage appearance="error">
@@ -76,16 +95,28 @@ const AdminApp = () => {
           </SectionMessage>
         )}
 
-        <Box 
-          padding="space.300" 
-          backgroundColor="color.background.danger"
-        >
+        <Box xcss={cardStyle}>
           <Stack space="space.200">
-            <Heading size="small">⚠️ Danger Zone</Heading>
+            <Heading size="small">About Data Storage</Heading>
             <Text>
-              Reset all Decision Catch data including approved decisions, drift resolutions, and dismissed candidates. 
-              This action cannot be undone.
+              Decision Catch stores all data securely in Forge storage. Data includes:
             </Text>
+            <Text>• <Strong>Approved decisions:</Strong> Team decisions you've reviewed and approved from issue comments</Text>
+            <Text>• <Strong>Drift resolutions:</Strong> Records of drift warnings you've resolved, with notes and timestamps</Text>
+            <Text>• <Strong>Dismissed candidates:</Strong> Decision candidates you've chosen to dismiss</Text>
+            <Text>All data is scoped to your Jira instance and never leaves Atlassian's infrastructure.</Text>
+          </Stack>
+        </Box>
+
+        <Box xcss={dangerCardStyle}>
+          <Stack space="space.200">
+            <Heading size="small">Danger Zone</Heading>
+            <Text>
+              <Strong>Reset all Decision Catch data</Strong> will permanently delete all approved decisions, drift resolutions, 
+              and dismissed candidates across all projects. This action cannot be undone and will require you to re-approve 
+              decisions from scratch.
+            </Text>
+            <Text>Only use this if you need to completely start over.</Text>
             <Box>
               <Button 
                 appearance="danger" 
