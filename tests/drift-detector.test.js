@@ -187,7 +187,7 @@ describe('Drift Detector', () => {
   describe('hasSameCategory', () => {
     it('should match database technologies', () => {
       expect(hasSameCategory('postgres', 'mongodb')).toBe(true);
-      expect(hasSameCategory('mysql', 'redis')).toBe(true);
+      expect(hasSameCategory('mysql', 'postgres')).toBe(true);
     });
 
     it('should match frontend frameworks', () => {
@@ -299,7 +299,7 @@ describe('Drift Detector', () => {
   });
 
   describe('live demo scenarios', () => {
-    it('PAY-5: should detect scope violation for SSO and not confuse with OAuth vs JWT', () => {
+    it('PAY-5: should detect scope violation for SSO (and OAuth vs JWT alternative)', () => {
       const issueText = 'Add SSO login for enterprise customers using OAuth2';
       const approvedDecisions = [
         {
@@ -320,11 +320,14 @@ describe('Drift Detector', () => {
 
       const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-5' });
       
-      // Should only flag SSO scope violation, not OAuth vs JWT
-      expect(drifts.length).toBe(1);
-      expect(drifts[0].type).toBe('scope_violation');
+      // Should flag SSO scope violation (highest priority) and OAuth vs JWT alternative
+      expect(drifts.length).toBe(2);
+      expect(drifts[0].type).toBe('scope_violation'); // First due to priority
       expect(drifts[0].explanation).toContain('sso');
       expect(drifts[0].decision.id).toBe('decision-1');
+      
+      expect(drifts[1].type).toBe('alternative'); // OAuth vs JWT
+      expect(drifts[1].explanation).toMatch(/oauth.*jwt/i);
     });
 
     it('PAY-6: should detect MongoDB vs PostgreSQL (alternative database)', () => {
@@ -456,6 +459,201 @@ describe('Drift Detector', () => {
       expect(drifts.length).toBe(1);
       expect(drifts[0].type).toBe('alternative');
       expect(drifts[0].explanation).toMatch(/mongodb.*instead of.*postgresql/i);
+    });
+  });
+
+  describe('natural language alternative detection (table-driven)', () => {
+    // Test cases that MUST detect drift
+    const mustDriftCases = [
+      {
+        name: 'Build the reporting service on MongoDB',
+        issueText: 'Build the reporting service on MongoDB for flexible documents.',
+        decision: { text: 'We decided to use PostgreSQL for the main database', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Use MongoDB for the reporting service',
+        issueText: 'Use MongoDB for the reporting service.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Store events in DynamoDB',
+        issueText: 'Store events in DynamoDB for better scalability.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Migrate the dashboard to Vue',
+        issueText: 'Migrate the dashboard to Vue for better reactivity.',
+        decision: { text: 'Going with React for the frontend', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: "We'll write the admin in Angular",
+        issueText: "We'll write the admin panel in Angular.",
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: 'Auth via JWT tokens (vs oauth)',
+        issueText: 'Auth via JWT tokens for the API.',
+        decision: { text: 'We decided to use OAuth for authentication', keywords: ['oauth'], topics: ['auth'] },
+      },
+      {
+        name: 'Built with Vue',
+        issueText: 'Dashboard will be built with Vue.',
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: 'Migrate to Cassandra',
+        issueText: 'Migrate to Cassandra for the data layer.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Store user data in Firestore',
+        issueText: 'Store user data in Firestore for the backend.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Implement with Django',
+        issueText: 'Implement the service with Django framework.',
+        decision: { text: 'We decided to use Express', keywords: ['express'], topics: ['backend'] },
+      },
+      {
+        name: 'Deploy to Azure',
+        issueText: 'Deploy the application to Azure.',
+        decision: { text: 'We decided to use AWS', keywords: ['aws'], topics: ['cloud'] },
+      },
+      {
+        name: 'Plain mention: Angular component',
+        issueText: 'Create Angular component for the form.',
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+    ];
+
+    // Test cases that MUST NOT detect drift
+    const mustNotDriftCases = [
+      {
+        name: 'Do not use MongoDB',
+        issueText: 'Do not use MongoDB in this implementation.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Redis cache in front of PostgreSQL',
+        issueText: 'Add Redis cache in front of PostgreSQL database.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Instead of MongoDB we keep PostgreSQL',
+        issueText: 'Instead of MongoDB we keep PostgreSQL as decided.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'No MongoDB needed',
+        issueText: 'No MongoDB needed for this task.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: 'Avoid Vue in this module',
+        issueText: 'Avoid Vue in this module, use the standard React.',
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: 'Rather than Angular, use React',
+        issueText: 'Rather than Angular, we use React as decided.',
+        decision: { text: 'Going with React', keywords: ['react'], topics: ['frontend'] },
+      },
+      {
+        name: 'Unrelated text',
+        issueText: 'Fix button alignment on the dashboard.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'] },
+      },
+      {
+        name: "Decision's own issue",
+        issueText: 'We decided to use PostgreSQL for the database.',
+        decision: { text: 'We decided to use PostgreSQL', keywords: ['postgresql'], topics: ['database'], sourceIssueKey: 'PAY-1' },
+        currentIssueKey: 'PAY-1',
+      },
+    ];
+
+    describe('MUST detect drift (natural phrasings)', () => {
+      mustDriftCases.forEach(({ name, issueText, decision }) => {
+        it(name, () => {
+          const drifts = detectDrift(issueText, [decision]);
+          expect(drifts.length).toBeGreaterThan(0);
+          expect(drifts[0].type).toBe('alternative');
+        });
+      });
+    });
+
+    describe('MUST NOT detect drift', () => {
+      mustNotDriftCases.forEach(({ name, issueText, decision, currentIssueKey }) => {
+        it(name, () => {
+          const drifts = detectDrift(issueText, [decision], currentIssueKey ? { currentIssueKey } : {});
+          expect(drifts.length).toBe(0);
+        });
+      });
+    });
+  });
+
+  describe('category separation tests', () => {
+    it('PostgreSQL + Redis cache should NOT flag each other (different categories)', () => {
+      const issueText = 'Add Redis cache for PostgreSQL queries.';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          sourceIssueKey: 'PAY-3',
+          text: 'We decided to use PostgreSQL for the database',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions, { currentIssueKey: 'PAY-11' });
+      expect(drifts.length).toBe(0);
+    });
+
+    it('Kafka queue + PostgreSQL DB should NOT flag each other', () => {
+      const issueText = 'Add Kafka queue for event processing with PostgreSQL storage.';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'We decided to use PostgreSQL',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      expect(drifts.length).toBe(0);
+    });
+
+    it('PostgreSQL vs MySQL should flag (both relational, same primary DB category)', () => {
+      const issueText = 'Use MySQL for the database.';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'We decided to use PostgreSQL',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].type).toBe('alternative');
+    });
+
+    it('PostgreSQL vs MongoDB should flag (both primary DB category)', () => {
+      const issueText = 'Store data in MongoDB.';
+      const approvedDecisions = [
+        {
+          id: 'decision-1',
+          text: 'We decided to use PostgreSQL',
+          keywords: ['postgresql'],
+          topics: ['database'],
+        },
+      ];
+
+      const drifts = detectDrift(issueText, approvedDecisions);
+      expect(drifts.length).toBe(1);
+      expect(drifts[0].type).toBe('alternative');
     });
   });
 });

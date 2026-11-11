@@ -2,6 +2,18 @@
 
 This guide helps judges and evaluators seed a Jira project with sample data to demonstrate Decision Catch's features.
 
+## Important Note
+
+**Issue key numbering may vary** on fresh Jira sites. If you create a new project, your first issue might be `PAY-1` or `PAY-7` or any number, depending on your site's history. The examples below use `PAY-1` through `PAY-7` for clarity, but **refer to issues by their role** rather than exact keys:
+
+- **Architecture Decision Issue**: The first issue with PostgreSQL, React, and SSO scope decisions
+- **API Framework Issue**: Express.js decision
+- **Testing Issue**: Jest/Cypress decision
+- **Cloud Issue**: AWS decision
+- **SSO Drift Issue**: Implements SSO (scope violation)
+- **MongoDB Drift Issue**: Uses MongoDB instead of PostgreSQL
+- **Angular Drift Issue**: Uses Angular instead of React
+
 ## Project Setup
 
 Create a new Jira project:
@@ -93,7 +105,7 @@ and the ops team knows AWS best.
 
 ---
 
-### PAY-5: SSO Implementation (Drift Example #1)
+### SSO Implementation Issue (Drift Example #1)
 
 **Summary**: "Implement SSO login with OAuth"
 
@@ -104,43 +116,53 @@ This will improve conversion rates.
 ```
 
 **Expected Drift**: 
-- Decision Catch will warn: "Issue violates scope decision"
-- Original decision from PAY-1: "Agreed: no SSO in v1.0, out of scope"
+- Decision Catch will warn: "Issue implements 'sso', but decision was to exclude it from scope"
+- Original decision from Architecture Issue: "Agreed: no SSO in v1.0, out of scope"
 - Type: Scope violation
 
 ---
 
-### PAY-6: MongoDB Integration (Drift Example #2)
+### MongoDB Integration Issue (Drift Example #2)
 
-**Summary**: "Setup MongoDB for session storage"
+**Summary**: "Reporting service"
 
-**Description**:
+**Description** (use natural phrasing):
 ```
-Need to set up MongoDB to store user sessions. MongoDB is faster for 
-this use case and we don't need transactions for sessions.
+Build the reporting service on MongoDB for flexible documents.
 ```
+
+**Alternative phrasings that also work**:
+- "Use MongoDB for the reporting service."
+- "Store events in MongoDB for better scalability."
+- "Reporting service with MongoDB database."
 
 **Expected Drift**:
-- Decision Catch will warn: "Issue uses mongodb instead of decided postgresql"
-- Original decision from PAY-1: "Use PostgreSQL for the database"
+- Decision Catch will warn: "Issue uses 'mongodb' instead of decided 'postgresql'"
+- Original decision from Architecture Issue: "Use PostgreSQL for the database"
 - Type: Alternative technology
+- **Natural language detection**: Works with "on MongoDB", "with MongoDB", "built with", "store in", plain mentions
 
 ---
 
-### PAY-7: Angular Migration (Drift Example #3)
+### Angular Migration Issue (Drift Example #3)
 
-**Summary**: "Migrate frontend from React to Angular"
+**Summary**: "User dashboard"
 
-**Description**:
+**Description** (use natural phrasing):
 ```
-The new frontend developer prefers Angular, so let's switch the frontend 
-stack to Angular 18 for better maintainability.
+Build user dashboard with Angular components.
 ```
+
+**Alternative phrasings that also work**:
+- "Migrate the dashboard to Angular for better maintainability."
+- "We'll write the admin panel in Angular."
+- "Dashboard built with Angular."
 
 **Expected Drift**:
-- Decision Catch will warn: "Issue uses angular instead of decided react"
-- Original decision from PAY-1: "Going with React and Next.js"
+- Decision Catch will warn: "Issue uses 'angular' instead of decided 'react'"
+- Original decision from Architecture Issue: "Going with React and Next.js"
 - Type: Alternative technology
+- **Natural language detection**: Works with various phrasings, no rigid patterns required
 
 ---
 
@@ -148,7 +170,7 @@ stack to Angular 18 for better maintainability.
 
 ### Step 1: Approve Decisions (30 seconds)
 
-1. Open **PAY-1** in Jira
+1. Open the **Architecture Decision Issue** (first issue with PostgreSQL/React/SSO comments) in Jira
 2. Check the Decision Catch panel on the right
 3. You should see 3 candidate decisions with "High" confidence
 4. Click **Approve** on each one:
@@ -159,32 +181,34 @@ stack to Angular 18 for better maintainability.
 
 ### Step 2: Approve More Decisions (20 seconds)
 
-Repeat for **PAY-2**, **PAY-3**, **PAY-4**:
+Repeat for the **API Framework**, **Testing**, and **Cloud Provider** issues:
 - Open each issue
 - Approve the decision shown
 - Now you have 6 approved decisions tracked
 
 ### Step 3: See Drift Detection (1 minute)
 
-Open **PAY-5** (SSO issue):
+Open the **SSO Implementation Issue**:
 - Panel shows: "⚠️ Drift Detected (1)"
 - Warning card with orange border
-- "Issue violates scope decision: SSO implementation"
-- Shows original decision from PAY-1
+- "Issue implements 'sso', but decision was to exclude it from scope"
+- Shows original decision from Architecture Issue
 
-Open **PAY-6** (MongoDB issue):
+Open the **MongoDB/Reporting Service Issue**:
 - Panel shows drift warning
-- "Issue uses mongodb instead of decided postgresql"
-- Alternative technology detected
+- **Exact text**: "Issue uses 'mongodb' instead of decided 'postgresql'"
+- Alternative technology detected **even with natural phrasing** like "Build the reporting service on MongoDB"
+- **Key test**: Works without rigid patterns like "using MongoDB" or "implementing MongoDB"
 
-Open **PAY-7** (Angular issue):
+Open the **Angular/Dashboard Issue**:
 - Another drift warning
-- "Issue uses angular instead of decided react"
-- Multiple technologies flagged (Angular, Next.js)
+- **Exact text**: "Issue uses 'angular' instead of decided 'react'"
+- Detects drift from **natural phrasings** like "Build user dashboard with Angular components"
+- **Key test**: No need for "switching to Angular" or "using Angular" - plain mention is enough
 
 ### Step 4: Resolve Drift (30 seconds)
 
-In **PAY-5** panel:
+In the **SSO Implementation Issue** panel:
 1. Click "Mark as intentional change"
 2. Modal opens
 3. Add note: "Requirements changed after talking to customers. SSO is now a priority for Q2."
@@ -199,10 +223,12 @@ If Rovo is enabled on your site:
 Ask in Rovo chat:
 - "List decisions for PAY project"
   - Shows all 6 approved decisions
-- "Check drift in PAY-6"
+- "Check drift in [MongoDB/Reporting issue key]"
   - Returns: "⚠️ Found 1 potential drift: uses mongodb instead of postgresql"
-- "Explain changes in PAY-7"
+- "Explain changes in [Angular/Dashboard issue key]"
   - Explains how Angular differs from the React decision
+
+Replace `[MongoDB/Reporting issue key]` and `[Angular/Dashboard issue key]` with your actual issue keys.
 
 ---
 

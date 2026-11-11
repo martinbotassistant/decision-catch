@@ -17,14 +17,37 @@ const NEGATION_PATTERNS = [
   /\bmoving\s+away\b/i,
 ];
 
-// Affirmative technology usage patterns
-const USAGE_PATTERNS = [
-  /\busing\s+(\w+)/i,
-  /\bimplementing\s+(\w+)/i,
-  /\badding\s+(\w+)/i,
-  /\bintegrating\s+(\w+)/i,
-  /\bwith\s+(\w+)/i,
-];
+// Technology catalog with aliases
+const TECH_CATALOG = {
+  // Relational/SQL databases (primary database category)
+  relationalDb: ['postgresql', 'postgres', 'mysql', 'mariadb', 'sqlserver', 'oracle', 'sqlite', 'cockroachdb'],
+  // Document/NoSQL databases (also primary database category for drift detection)
+  documentDb: ['mongodb', 'dynamodb', 'cassandra', 'couchdb', 'firestore', 'cosmosdb'],
+  // Caches (separate category)
+  cache: ['redis', 'memcached', 'elasticache', 'varnish'],
+  // Message queues (separate category)
+  queue: ['kafka', 'rabbitmq', 'sqs', 'pubsub', 'kinesis', 'servicebus'],
+  // Frontend frameworks
+  frontend: ['react', 'vue', 'angular', 'svelte', 'ember', 'solid', 'preact', 'nextjs', 'nuxt', 'gatsby'],
+  // Backend frameworks
+  backend: ['express', 'fastapi', 'django', 'spring', 'nestjs', 'flask', 'rails', 'laravel', 'aspnet'],
+  // Cloud providers
+  cloud: ['aws', 'azure', 'gcp', 'cloudflare', 'heroku', 'digitalocean', 'vercel', 'netlify'],
+  // Auth methods
+  auth: ['oauth', 'oauth2', 'jwt', 'sso', 'saml', 'auth0', 'okta', 'cognito', 'firebase'],
+};
+
+// Aliases map: tech -> canonical name
+const TECH_ALIASES = {
+  'postgres': 'postgresql',
+  'mongo': 'mongodb',
+  'k8s': 'kubernetes',
+  'next': 'nextjs',
+  'oauth2': 'oauth',
+};
+
+// Build a flat list of all known technologies
+const ALL_TECHS = Object.values(TECH_CATALOG).flat();
 
 /**
  * Check if an issue text drifts from approved decisions
@@ -150,29 +173,29 @@ function detectContradiction(issueText, decisionText, decisionKeywords) {
       decisionText.includes(`decided ${keyword}`);
 
     if (decisionIsAffirmative) {
-      // Check for use of a different technology in the same category
-      const issueUsage = extractUsedTechnologies(issueText);
-      // Switch pattern: the issue names the decided tech AND another tech of the same
-      // category (e.g. "switching from PostgreSQL to MongoDB")
-      if (new RegExp(`\\b${escapeRegExp(keyword)}\\b`).test(issueText)) {
-        for (const tech of extractKeywordsFromText(issueText)) {
-          if (tech.includes(keyword) || keyword.includes(tech)) continue;
-          if (!issueUsage.includes(tech)) issueUsage.push(tech);
-        }
-      }
+      // Get canonical form of decided tech
+      const decidedTech = normalizeAlias(keyword);
+      const decidedCategory = getTechCategory(decidedTech);
       
-      if (issueUsage.length > 0) {
-        for (const usedTech of issueUsage) {
-          if (usedTech !== keyword && !usedTech.includes(keyword) && !keyword.includes(usedTech)) {
-            const sameCategory = hasSameCategory(keyword, usedTech);
-            if (sameCategory) {
-              return {
-                type: 'alternative',
-                explanation: `Issue uses "${usedTech}" instead of decided "${keyword}"`,
-                confidence: 0.75,
-                matchedPhrase: usedTech,
-              };
-            }
+      if (decidedCategory) {
+        // Find ANY mention of technologies in the same category (not negated)
+        const mentionedTechs = findTechMentions(issueText);
+        
+        for (const mentionedTech of mentionedTechs) {
+          const normalizedMention = normalizeAlias(mentionedTech);
+          
+          // Skip if it's the same tech or an alias
+          if (normalizedMention === decidedTech) continue;
+          
+          // Check if it's in a conflicting category
+          const mentionCategory = getTechCategory(normalizedMention);
+          if (shouldFlagAsAlternative(decidedCategory, mentionCategory)) {
+            return {
+              type: 'alternative',
+              explanation: `Issue uses "${mentionedTech}" instead of decided "${keyword}"`,
+              confidence: 0.75,
+              matchedPhrase: mentionedTech,
+            };
           }
         }
       }
@@ -246,45 +269,103 @@ function calculateKeywordOverlap(set1, arr2) {
 }
 
 /**
- * Extract technologies being used from text
- * @param {string} text - Lowercase text
- * @returns {Array} Array of technology names
+ * Normalize tech aliases to canonical form
+ * @param {string} tech - Technology name
+ * @returns {string} Canonical name
  */
-function extractUsedTechnologies(text) {
-  const technologies = [];
-  
-  for (const pattern of USAGE_PATTERNS) {
-    const match = pattern.exec(text);
-    if (match && match[1]) {
-      technologies.push(match[1].toLowerCase());
-    }
-  }
-
-  return technologies;
+function normalizeAlias(tech) {
+  const lower = tech.toLowerCase();
+  return TECH_ALIASES[lower] || lower;
 }
 
 /**
- * Check if two technologies are in the same category
+ * Get the category of a technology
+ * @param {string} tech - Technology name (normalized)
+ * @returns {string|null} Category name or null
+ */
+function getTechCategory(tech) {
+  for (const [category, techs] of Object.entries(TECH_CATALOG)) {
+    if (techs.includes(tech)) {
+      return category;
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if mentioned category should flag as alternative to decided category
+ * Relational and document DBs are treated as same "primary database" category
+ * @param {string} decidedCategory
+ * @param {string} mentionedCategory
+ * @returns {boolean}
+ */
+function shouldFlagAsAlternative(decidedCategory, mentionedCategory) {
+  if (!decidedCategory || !mentionedCategory) return false;
+  
+  // Relational and document DBs are both "primary database" - flag as alternatives
+  const primaryDbCategories = ['relationalDb', 'documentDb'];
+  if (primaryDbCategories.includes(decidedCategory) && primaryDbCategories.includes(mentionedCategory)) {
+    return true;
+  }
+  
+  // Same category = alternative
+  return decidedCategory === mentionedCategory;
+}
+
+/**
+ * Find all technology mentions in text (not negated)
+ * @param {string} text - Lowercase text
+ * @returns {Array} Array of mentioned technology names
+ */
+function findTechMentions(text) {
+  const mentions = [];
+  
+  for (const tech of ALL_TECHS) {
+    // Check for whole-word match
+    const regex = new RegExp(`\\b${escapeRegExp(tech)}\\b`, 'gi');
+    const match = regex.exec(text);
+    
+    if (match) {
+      // Check if this mention is negated in its sentence
+      const matchIndex = match.index;
+      
+      // Find the sentence containing this match (approx: look 100 chars before)
+      const contextStart = Math.max(0, matchIndex - 100);
+      const context = text.slice(contextStart, matchIndex + tech.length + 50);
+      
+      // Check for negation patterns in the context
+      const isNegated = 
+        /\bnot\s+\w*\s*\w*\s*$/.test(text.slice(contextStart, matchIndex)) ||  // "not ... tech"
+        /\bno\s+\w*\s*\w*\s*$/.test(text.slice(contextStart, matchIndex)) ||    // "no ... tech"
+        /\bavoid\s+\w*\s*\w*\s*$/.test(text.slice(contextStart, matchIndex)) || // "avoid ... tech"
+        /\binstead of\s+\w*\s*\w*\s*$/.test(text.slice(contextStart, matchIndex)) || // "instead of tech"
+        /\brather than\s+\w*\s*\w*\s*$/.test(text.slice(contextStart, matchIndex)) || // "rather than tech"
+        context.includes(`migrate away from ${tech}`) ||
+        context.includes(`moving away from ${tech}`);
+      
+      if (!isNegated) {
+        mentions.push(tech);
+      }
+    }
+  }
+  
+  return mentions;
+}
+
+/**
+ * Check if two technologies are in the same category (LEGACY - kept for compatibility)
  * @param {string} tech1
  * @param {string} tech2
  * @returns {boolean}
  */
 function hasSameCategory(tech1, tech2) {
-  const categories = {
-    database: ['postgres', 'postgresql', 'mysql', 'mongodb', 'redis', 'dynamodb', 'cassandra'],
-    frontend: ['react', 'vue', 'angular', 'svelte', 'ember'],
-    backend: ['express', 'fastapi', 'django', 'spring', 'nestjs', 'flask'],
-    cloud: ['aws', 'azure', 'gcp', 'cloudflare', 'heroku'],
-    auth: ['oauth', 'jwt', 'sso', 'saml', 'auth0', 'okta'],
-  };
-
-  for (const [category, techs] of Object.entries(categories)) {
-    if (techs.includes(tech1.toLowerCase()) && techs.includes(tech2.toLowerCase())) {
-      return true;
-    }
-  }
-
-  return false;
+  const norm1 = normalizeAlias(tech1);
+  const norm2 = normalizeAlias(tech2);
+  
+  const cat1 = getTechCategory(norm1);
+  const cat2 = getTechCategory(norm2);
+  
+  return shouldFlagAsAlternative(cat1, cat2);
 }
 
 module.exports = {
@@ -293,4 +374,8 @@ module.exports = {
   extractKeywordsFromText,
   calculateKeywordOverlap,
   hasSameCategory,
+  findTechMentions,
+  normalizeAlias,
+  getTechCategory,
+  shouldFlagAsAlternative,
 };

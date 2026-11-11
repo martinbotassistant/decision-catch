@@ -45,6 +45,10 @@ When someone creates work that contradicts an approved decision, the panel shows
 - **Explanation**: "Issue uses MongoDB instead of decided PostgreSQL"
 - **Original decision**: Link to source issue
 
+**Natural language detection**: Works with any phrasing — "Build the reporting service **on MongoDB**", "Use **MongoDB** for storage", "Store data **in MongoDB**", plain mentions. No need for rigid patterns like "using MongoDB" or "implementing MongoDB".
+
+**Smart category matching**: Relational (PostgreSQL, MySQL) vs document (MongoDB, DynamoDB) databases flag each other, but cache (Redis) and queue (Kafka) are separate categories and won't false-positive. PostgreSQL + Redis cache is fine; PostgreSQL + MongoDB is drift.
+
 Team can resolve drift as "intentional change" (with notes) or "not a conflict". Resolved items stay visible in a collapsed section with full audit trail.
 
 ### 4. 🤖 **Rovo Agent (Bonus)** — AI-powered decision lookup
@@ -148,41 +152,44 @@ Decision Catch requests these Jira scopes (all justified):
 
 ## 🎬 Demo Walkthrough
 
+**Note**: Issue keys (PAY-1, PAY-2, etc.) are examples. On a fresh Jira site, your first issue might be PAY-1 or PAY-7 or any number depending on site history. The demo script in `docs/demo-data.md` describes issues by role (Architecture Decision Issue, MongoDB Drift Issue, etc.) rather than fixed keys.
+
 ### 1. Setup (30 seconds)
 Create a Jira project "PAY" (Payment System) with these sample issues:
 
-**PAY-1**: Initial decisions (in comments)
+**Architecture Decision Issue** (e.g. PAY-1): Initial decisions (in comments)
 - "We decided to use PostgreSQL for the database"
 - "Going with React and Next.js for the frontend"
 - "Agreed: no SSO implementation in v1.0, out of scope"
 
-**PAY-2**, **PAY-3**, **PAY-4**: More decisions (see `docs/demo-data.md` for full script)
+**API/Testing/Cloud Issues** (e.g. PAY-2, PAY-3, PAY-4): More decisions (see `docs/demo-data.md` for full script)
 
 ### 2. Approve Decisions (30 seconds)
-- Open **PAY-1**
+- Open the **Architecture Decision Issue**
 - Decision Catch panel shows 3 candidates with High confidence
 - Click **Approve** on each → saved with timestamp and source link
 
 ### 3. See Drift Detection (1 minute)
-- Create **PAY-5**: "Implement SSO via OAuth"
-  - Panel warns: "Issue violates scope decision: agreed no SSO in v1"
-  - Shows original decision from PAY-1
-- Create **PAY-6**: "Setup MongoDB database"
-  - Panel warns: "Issue uses mongodb instead of decided postgresql"
+- Create **SSO Implementation Issue**: "Implement SSO via OAuth"
+  - Panel warns: "Issue implements 'sso', but decision was to exclude it from scope"
+  - Shows original decision from Architecture Issue
+- Create **Reporting Service Issue**: Description "**Build the reporting service on MongoDB** for flexible documents."
+  - Panel warns: "Issue uses 'mongodb' instead of decided 'postgresql'"
+  - **Natural language detection**: Works with "on MongoDB", "with MongoDB", "built with MongoDB" — no rigid patterns
   - Shows alternative technology conflict
 
 ### 4. Resolve Drift (30 seconds)
-- In PAY-5, click "Mark as intentional change"
+- In the SSO Implementation Issue, click "Mark as intentional change"
 - Add note: "Requirements changed, SSO now priority"
 - Drift moves to "Resolved" section with full audit trail
 
 ### 5. Try Rovo Agent (30 seconds) *[Optional, requires Rovo enabled]*
-- Ask: "Check drift in PAY-6"
+- Ask: "Check drift in [Reporting Service issue key]"
 - Agent responds: "⚠️ Found 1 potential drift: uses mongodb instead of postgresql"
 
 **Total demo time**: Under 4 minutes
 
-Full demo data script: [`docs/demo-data.md`](docs/demo-data.md)
+Full demo data script: [`docs/demo-data.md`](docs/demo-data.md) — includes natural phrasing examples that MUST detect drift
 
 ## 🧪 Testing
 
@@ -237,6 +244,21 @@ All core logic is tested with fixtures (sample Jira comments). No Atlassian API 
 All limitations are architectural choices for a reliable MVP. Post-hackathon, we can add LLM fallback for edge cases.
 
 ## 📦 Version History
+
+### v3.0.1 (Critical: Natural Language Drift Detection)
+- **CRITICAL FIX**: Drift detection now catches **natural language** phrasings like "Build the reporting service **on MongoDB**", "Use **MongoDB** for storage", "Store data **in DynamoDB**", plain tech mentions
+- **Root cause**: Old logic relied on rigid `USAGE_PATTERNS` ("using X", "implementing X") — missed real-world phrasing judges write
+- **New detection**: ANY whole-word mention of a same-category technology (not the decided one, not an alias) flags as alternative drift
+- **Negation filtering**: Skips mentions preceded by "not", "no", "avoid", "instead of", "rather than", "migrate away from" (sentence-level check)
+- **Category refinement**:
+  - Primary Database = relational (postgresql, mysql, sqlite, mariadb, sqlserver, oracle) + document/NoSQL (mongodb, dynamodb, cassandra, couchdb, firestore) → flag each other
+  - Cache (redis, memcached) = separate category → PostgreSQL + Redis won't false-positive
+  - Queue (kafka, rabbitmq, sqs) = separate category
+  - Expanded frontend (react, vue, angular, svelte, ember, solid), backend (express, django, flask, spring, rails, nestjs, laravel), cloud, auth
+- **Alias normalization**: postgres/postgresql, oauth/oauth2, mongo/mongodb treated as same tech
+- **Test coverage**: 138 passing (57 drift detector tests: 12 natural-phrasing MUST-drift + 8 MUST-NOT-drift table-driven tests + category separation tests)
+- **Docs updated**: `docs/demo-data.md` and `README.md` note issue keys vary on fresh sites, describe steps by role, include exact natural phrasing examples
+- **Judge-ready**: Clean-site demo now works with "Build the reporting service on MongoDB" (was silently missed before)
 
 ### v3.0.0 (Codegeist Submission Candidate)
 - **Rovo agent bug fix**: Fixed input reading to handle Forge's top-level payload structure (payload.issueKey, not payload.payload.inputs.issueKey)
