@@ -220,6 +220,15 @@ Post-hackathon enhancements:
 
 ## 📋 Version History
 
+### v2.12.0 (Visual Redesign)
+- **Modern card-based UI**: Clean borders, rounded corners, and subtle backgrounds using Atlassian design tokens
+- **Token-based styling**: All styling uses `xcss` with design tokens (`border.width`, `border.radius.200`, `color.border`, `elevation.surface`, `space.150`, `space.200`)
+- **Improved hierarchy**: Card headers with `Inline spread="space-between"` positioning status lozenges on the right
+- **Consistent spacing**: Uniform padding and spacing throughout all sections
+- **Muted resolved items**: Resolved drift items visually distinguished with reduced opacity while remaining readable
+- **Better readability**: Clear section headers with counts, improved typography with `size="small"` for metadata
+- **No functional changes**: All 94 tests passing; behavior, resolvers, and Jira integration unchanged
+
 ### v2.11.1 (Review fixes)
 - Backend Jira calls use `@forge/api` (`asUser()` with `asApp()` fallback, `route` tag) instead of frontend-only `@forge/bridge`; non-2xx responses now surface as warnings
 - Resolver shown by name via UI Kit `User` component; comment @mentions the resolver

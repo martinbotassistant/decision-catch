@@ -178,25 +178,48 @@ const App = () => {
     );
   }
 
+  // Card styles using design tokens
+  const cardStyle = {
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border',
+    borderRadius: 'border.radius.200',
+    padding: 'space.200',
+    backgroundColor: 'elevation.surface'
+  };
+
+  const resolvedCardStyle = {
+    borderWidth: 'border.width',
+    borderStyle: 'solid',
+    borderColor: 'color.border',
+    borderRadius: 'border.radius.200',
+    padding: 'space.200',
+    backgroundColor: 'elevation.surface',
+    opacity: '0.8'
+  };
+
   return (
     <Box padding="space.200">
       <Stack space="space.300">
 
         {/* Drift Warnings */}
         {data.drifts && data.drifts.length > 0 && (
-          <Box>
+          <Stack space="space.200">
             <Heading size="small">⚠️ Drift Detected</Heading>
             <Stack space="space.200">
               {data.drifts.map((drift, index) => (
-                <SectionMessage key={index} appearance="warning">
-                  <Stack space="space.100">
-                    <Text>
-                      <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
-                    </Text>
+                <Box key={index} xcss={cardStyle}>
+                  <Stack space="space.150">
+                    <Inline spread="space-between" alignBlock="center">
+                      <Text>
+                        <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
+                      </Text>
+                      <Lozenge appearance="removed">DRIFT</Lozenge>
+                    </Inline>
                     <Text>
                       <Em>{drift.explanation}</Em>
                     </Text>
-                    <Text>
+                    <Text size="small">
                       Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
                     </Text>
                     <ButtonGroup>
@@ -204,15 +227,15 @@ const App = () => {
                       <Button onClick={() => handleResolveDrift(drift, 'not_a_conflict')}>Not a conflict</Button>
                     </ButtonGroup>
                   </Stack>
-                </SectionMessage>
+                </Box>
               ))}
             </Stack>
-          </Box>
+          </Stack>
         )}
 
         {/* Resolved Drifts */}
         {data.resolvedDrifts && data.resolvedDrifts.length > 0 && (
-          <Box>
+          <Stack space="space.200">
             <Button 
               appearance="subtle" 
               onClick={() => setShowResolvedSection(!showResolvedSection)}
@@ -222,35 +245,35 @@ const App = () => {
             {showResolvedSection && (
               <Stack space="space.200">
                 {data.resolvedDrifts.map((drift, index) => (
-                  <Box key={index} padding="space.100" backgroundColor="color.background.success.subtle">
-                    <Stack space="space.100">
-                      <Inline space="space.100">
-                        <Lozenge appearance="success">RESOLVED</Lozenge>
+                  <Box key={index} xcss={resolvedCardStyle}>
+                    <Stack space="space.150">
+                      <Inline spread="space-between" alignBlock="center">
                         <Text>
                           <Strong>{String(drift.type || "drift").replace(/_/g, ' ')}</Strong>
                         </Text>
+                        <Lozenge appearance="success">RESOLVED</Lozenge>
                       </Inline>
                       <Text>
                         <Em>{drift.explanation}</Em>
                       </Text>
-                      <Text>
+                      <Text size="small">
                         Original decision in {drift.decision?.sourceIssueKey}: "{drift.decision?.text}"
                       </Text>
                       <Inline space="space.050" alignBlock="center" shouldWrap>
-                        <Text>
+                        <Text size="small">
                           <Em>Resolved as {String(drift.resolution.resolutionType || '').replace(/_/g, ' ')} by</Em>
                         </Text>
                         {drift.resolution.resolvedBy ? (
                           <User accountId={drift.resolution.resolvedBy} />
                         ) : (
-                          <Text><Em>unknown</Em></Text>
+                          <Text size="small"><Em>unknown</Em></Text>
                         )}
-                        <Text>
+                        <Text size="small">
                           <Em>on {new Date(drift.resolution.resolvedAt).toLocaleString()}</Em>
                         </Text>
                       </Inline>
                       {drift.resolution.notes && (
-                        <Text>
+                        <Text size="small">
                           <Strong>Note:</Strong> {drift.resolution.notes}
                         </Text>
                       )}
@@ -259,28 +282,32 @@ const App = () => {
                 ))}
               </Stack>
             )}
-          </Box>
+          </Stack>
         )}
 
         {/* Candidate Decisions */}
-        <Box>
+        <Stack space="space.200">
           <Heading size="small">📝 Candidate Decisions ({data.candidates?.length || 0})</Heading>
           {data.candidates && data.candidates.length > 0 ? (
             <Stack space="space.200">
               {data.candidates.map((candidate, index) => (
-                <Box key={index} padding="space.100" backgroundColor="color.background.neutral">
-                  <Stack space="space.100">
-                    <Text>"{candidate.text}"</Text>
-                    <Inline space="space.100">
-                      <Lozenge appearance="default">{`${candidate.metadata?.source} by ${candidate.metadata?.author || "unknown"}`}</Lozenge>
+                <Box key={index} xcss={cardStyle}>
+                  <Stack space="space.150">
+                    <Inline spread="space-between" alignBlock="start">
+                      <Text>
+                        <Strong>"{candidate.text}"</Strong>
+                      </Text>
                       <Lozenge appearance={candidate.confidence > 0.7 ? 'success' : candidate.confidence > 0.4 ? 'default' : 'removed'}>
-                        {candidate.confidence > 0.7 ? 'High confidence' : candidate.confidence > 0.4 ? 'Medium' : 'Low'}
+                        {candidate.confidence > 0.7 ? 'High' : candidate.confidence > 0.4 ? 'Med' : 'Low'}
                       </Lozenge>
                     </Inline>
+                    <Inline space="space.100" shouldWrap>
+                      <Text size="small">{candidate.metadata?.source} by {candidate.metadata?.author || "unknown"}</Text>
+                    </Inline>
                     {candidate.topics && candidate.topics.length > 0 && (
-                      <Inline space="space.050">
+                      <Inline space="space.050" shouldWrap>
                         {candidate.topics.map((topic, i) => (
-                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
+                          <Lozenge key={i} appearance="new">{topic}</Lozenge>
                         ))}
                       </Inline>
                     )}
@@ -296,25 +323,34 @@ const App = () => {
           ) : (
             <Text>No candidate decisions found in this issue.</Text>
           )}
-        </Box>
+        </Stack>
 
         {/* Approved Decisions */}
         {data.approvedDecisions && data.approvedDecisions.length > 0 && (
-          <Box>
-            <Heading size="small">✅ Approved Decisions ({data.approvedDecisions.length})</Heading>
+          <Stack space="space.200">
+            <Heading size="small">✅ Decisions ({data.approvedDecisions.length})</Heading>
             <Stack space="space.200">
               {data.approvedDecisions.map((decision, index) => (
-                <Box key={index} padding="space.100" backgroundColor="color.background.success">
-                  <Stack space="space.100">
-                    <Text>"{decision.text}"</Text>
-                    <Inline space="space.100">
-                      <Text><Em>From {decision.sourceIssueKey}</Em></Text>
-                      <Text><Em>Approved by {decision.approvedBy || 'unknown'} on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em></Text>
+                <Box key={index} xcss={cardStyle}>
+                  <Stack space="space.150">
+                    <Inline spread="space-between" alignBlock="start">
+                      <Text>
+                        <Strong>"{decision.text}"</Strong>
+                      </Text>
+                      <Lozenge appearance="success">APPROVED</Lozenge>
+                    </Inline>
+                    <Inline space="space.100" shouldWrap>
+                      <Text size="small">
+                        <Em>From {decision.sourceIssueKey}</Em>
+                      </Text>
+                      <Text size="small">
+                        <Em>• Approved by {decision.approvedBy || 'unknown'} on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em>
+                      </Text>
                     </Inline>
                     {decision.topics && decision.topics.length > 0 && (
-                      <Inline space="space.050">
+                      <Inline space="space.050" shouldWrap>
                         {decision.topics.map((topic, i) => (
-                          <Lozenge key={i}  appearance="new">{topic}</Lozenge>
+                          <Lozenge key={i} appearance="new">{topic}</Lozenge>
                         ))}
                       </Inline>
                     )}
@@ -322,12 +358,12 @@ const App = () => {
                 </Box>
               ))}
             </Stack>
-          </Box>
+          </Stack>
         )}
 
         {/* Project Stats */}
         {data.projectDecisionCount > 0 && (
-          <Text>
+          <Text size="small">
             <Em>{data.projectDecisionCount} decision(s) tracked in this project</Em>
           </Text>
         )}
