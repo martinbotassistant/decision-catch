@@ -374,12 +374,20 @@ const App = () => {
                       </Text>
                       <Lozenge appearance="success">APPROVED</Lozenge>
                     </Inline>
-                    <Inline space="space.100" shouldWrap>
+                    <Inline space="space.100" alignBlock="center" shouldWrap>
                       <Text size="small">
                         <Em>From {decision.sourceIssueKey}</Em>
                       </Text>
                       <Text size="small">
-                        <Em>• Approved by {decision.approvedBy || 'unknown'} on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em>
+                        <Em>• Approved by</Em>
+                      </Text>
+                      {decision.approvedBy ? (
+                        <User accountId={decision.approvedBy} />
+                      ) : (
+                        <Text size="small"><Em>unknown</Em></Text>
+                      )}
+                      <Text size="small">
+                        <Em>on {new Date(decision.approvedAt || Date.now()).toLocaleDateString()}</Em>
                       </Text>
                     </Inline>
                     {decision.topics && decision.topics.length > 0 && (

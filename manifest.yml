@@ -114,11 +114,6 @@ permissions:
     - read:jira-user
     - storage:app
 
-  external:
-    fetch:
-      backend:
-        - '*.atlassian.net'
-
 resources:
   - key: main
     path: src/frontend/index.jsx
