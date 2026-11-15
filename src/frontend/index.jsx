@@ -15,6 +15,10 @@ import ForgeReconciler, {
   useProductContext,
   Modal,
   ModalTransition,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+  ModalFooter,
   TextArea,
   User,
   xcss,
@@ -418,32 +422,36 @@ const App = () => {
       <ModalTransition>
         {resolvingDrift && (
           <Modal onClose={handleCancelResolution}>
-            <Stack space="space.300">
-              <Heading size="medium">Resolve Drift</Heading>
-              <Text>
-                <Strong>Drift:</Strong> {resolvingDrift.explanation}
-              </Text>
-              <Text>
-                <Strong>Resolution:</Strong> {resolutionType === 'intentional_change' ? 'Intentional change' : 'Not a conflict'}
-              </Text>
-              <TextArea
-                label="Notes (optional)"
-                placeholder="Add any notes about this resolution..."
-                value={resolutionNotes}
-                onChange={(e) => setResolutionNotes(e.target.value)}
-              />
-              <Inline space="space.200">
-                <Button 
-                  appearance="primary" 
-                  onClick={handleConfirmResolution}
-                >
-                  Confirm
-                </Button>
-                <Button onClick={handleCancelResolution}>
-                  Cancel
-                </Button>
-              </Inline>
-            </Stack>
+            <ModalHeader>
+              <ModalTitle>Resolve Drift</ModalTitle>
+            </ModalHeader>
+            <ModalBody>
+              <Stack space="space.200">
+                <Text>
+                  <Strong>Drift:</Strong> {resolvingDrift.explanation}
+                </Text>
+                <Text>
+                  <Strong>Resolution:</Strong> {resolutionType === 'intentional_change' ? 'Intentional change' : 'Not a conflict'}
+                </Text>
+                <TextArea
+                  label="Notes (optional)"
+                  placeholder="Add any notes about this resolution..."
+                  value={resolutionNotes}
+                  onChange={(e) => setResolutionNotes(e.target.value)}
+                />
+              </Stack>
+            </ModalBody>
+            <ModalFooter>
+              <Button 
+                appearance="primary" 
+                onClick={handleConfirmResolution}
+              >
+                Confirm
+              </Button>
+              <Button onClick={handleCancelResolution}>
+                Cancel
+              </Button>
+            </ModalFooter>
           </Modal>
         )}
       </ModalTransition>

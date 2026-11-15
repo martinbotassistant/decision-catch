@@ -9,6 +9,10 @@ import ForgeReconciler, {
   SectionMessage,
   Modal,
   ModalTransition,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+  ModalFooter,
   Inline,
   xcss,
 } from '@forge/react';
@@ -131,32 +135,36 @@ const AdminApp = () => {
 
         <ModalTransition>
           {isModalOpen && (
-            <Modal>
-              <Stack space="space.300">
-                <Heading size="medium">Confirm Reset</Heading>
-                <Text>
-                  Are you sure you want to reset all Decision Catch data? This will delete:
-                </Text>
-                <Text>• All approved decisions across all projects</Text>
-                <Text>• All drift resolutions</Text>
-                <Text>• All dismissed candidates</Text>
-                <Text><Strong>This action cannot be undone.</Strong></Text>
-                <Inline space="space.200">
-                  <Button 
-                    appearance="danger" 
-                    onClick={handleConfirmReset}
-                    isDisabled={isResetting}
-                  >
-                    {isResetting ? 'Resetting...' : 'Yes, reset all data'}
-                  </Button>
-                  <Button 
-                    onClick={handleCancelReset}
-                    isDisabled={isResetting}
-                  >
-                    Cancel
-                  </Button>
-                </Inline>
-              </Stack>
+            <Modal onClose={handleCancelReset}>
+              <ModalHeader>
+                <ModalTitle>Confirm Reset</ModalTitle>
+              </ModalHeader>
+              <ModalBody>
+                <Stack space="space.200">
+                  <Text>
+                    Are you sure you want to reset all Decision Catch data? This will delete:
+                  </Text>
+                  <Text>• All approved decisions across all projects</Text>
+                  <Text>• All drift resolutions</Text>
+                  <Text>• All dismissed candidates</Text>
+                  <Text><Strong>This action cannot be undone.</Strong></Text>
+                </Stack>
+              </ModalBody>
+              <ModalFooter>
+                <Button 
+                  appearance="danger" 
+                  onClick={handleConfirmReset}
+                  isDisabled={isResetting}
+                >
+                  {isResetting ? 'Resetting...' : 'Yes, reset all data'}
+                </Button>
+                <Button 
+                  onClick={handleCancelReset}
+                  isDisabled={isResetting}
+                >
+                  Cancel
+                </Button>
+              </ModalFooter>
             </Modal>
           )}
         </ModalTransition>
