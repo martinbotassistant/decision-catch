@@ -1,6 +1,6 @@
 {
   "name": "decision-catch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Atlassian Forge app to track and validate decisions in Jira",
   "main": "src/index.js",
   "scripts": {
